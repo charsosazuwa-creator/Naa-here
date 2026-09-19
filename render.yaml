@@ -23,7 +23,11 @@ services:
     runtime: node
     plan: free
     rootDir: .
-    buildCommand: cd api && npm ci && npm run build
+    # --include=dev is required: NODE_ENV=production below makes npm
+    # ci skip devDependencies by default, which would leave out
+    # @nestjs/cli (the `nest` command that builds the API) and fail
+    # the build with "nest: not found".
+    buildCommand: cd api && npm ci --include=dev && npm run build
     startCommand: node api/scripts/deploy-start.js
     healthCheckPath: /health/live
     envVars:
