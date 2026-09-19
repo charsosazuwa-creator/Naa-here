@@ -28,7 +28,18 @@ const { Client } = require('pg');
 
 const API_DIR = path.join(__dirname, '..');
 const DB_DIR = path.join(__dirname, '..', '..', 'db', 'migrations');
-const MAIN_FILE = path.join(API_DIR, 'dist', 'main.js');
+
+// Nest's tsconfig here outputs to dist/src/main.js, not dist/main.js
+// (rootDir: '.' in api/tsconfig.json includes both src/ and test/ in
+// the compiled tree) - same two candidates launcher/start.js checks
+// for the local demo.
+function findMain() {
+  const candidates = [
+    path.join(API_DIR, 'dist', 'main.js'),
+    path.join(API_DIR, 'dist', 'src', 'main.js'),
+  ];
+  return candidates.find((p) => fs.existsSync(p)) || null;
+}
 
 function log(msg) {
   // eslint-disable-next-line no-console
@@ -93,8 +104,14 @@ async function setRuntimePassword(databaseUrl, password) {
 }
 
 function startApi(databaseUrl) {
+  const mainFile = findMain();
+  if (!mainFile) {
+    throw new Error(
+      'Build finished but dist/main.js (or dist/src/main.js) was not found. Did the build step run?',
+    );
+  }
   log(`Starting the API on port ${process.env.PORT || 3000}...`);
-  const child = spawn(process.execPath, [MAIN_FILE], {
+  const child = spawn(process.execPath, [mainFile], {
     cwd: API_DIR,
     stdio: 'inherit',
     env: {
