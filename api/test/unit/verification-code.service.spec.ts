@@ -3,6 +3,7 @@ import { VerificationCodeService } from '../../src/modules/identity/verification
 import { DatabaseService } from '../../src/database/database.service';
 import { ConfigService } from '@nestjs/config';
 import { AppConfig } from '../../src/config/configuration';
+import { EmailProvider } from '../../src/modules/notifications/email-provider.interface';
 
 function makeConfig(overrides: Partial<{ codeTtlMinutes: number; maxAttempts: number }> = {}) {
   return {
@@ -10,20 +11,47 @@ function makeConfig(overrides: Partial<{ codeTtlMinutes: number; maxAttempts: nu
   } as unknown as ConfigService<AppConfig, true>;
 }
 
+// A no-op stand-in for the real/mock email provider — these tests care
+// about verification-code storage/checking logic, not delivery, so the
+// provider is never asserted against here (see notifications/*.spec.ts,
+// if/when those are added, for provider-specific behavior).
+function makeEmailProvider(): EmailProvider {
+  return { name: 'test-stub', send: jest.fn().mockResolvedValue(undefined) };
+}
+
 describe('VerificationCodeService', () => {
   it('issue() stores a hashed code, never the code itself', async () => {
-    const query = jest.fn().mockResolvedValue([]);
+    // First call is the INSERT into verification_code; second is
+    // issue()'s subsequent lookup of the user's email to send to.
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([]) // INSERT
+      .mockResolvedValueOnce([{ email: 'user@example.com', full_name: 'Ada' }]); // SELECT email
     const db = { query } as unknown as DatabaseService;
-    const service = new VerificationCodeService(db, makeConfig());
+    const emailProvider = makeEmailProvider();
+    const service = new VerificationCodeService(db, makeConfig(), emailProvider);
 
     await service.issue('user-1', 'email_verify', 'email');
 
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledTimes(2);
     const [, params] = query.mock.calls[0] as [string, unknown[]];
     const storedHash = params[2] as string;
     // argon2 hashes never contain the plaintext six-digit code as a substring
     // in a way that would let it be read back out.
     expect(storedHash.startsWith('$argon2')).toBe(true);
+    expect(emailProvider.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('issue() for an sms channel never queries for an email or calls the email provider', async () => {
+    const query = jest.fn().mockResolvedValueOnce([]); // INSERT only
+    const db = { query } as unknown as DatabaseService;
+    const emailProvider = makeEmailProvider();
+    const service = new VerificationCodeService(db, makeConfig(), emailProvider);
+
+    await service.issue('user-1', 'phone_verify', 'sms');
+
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(emailProvider.send).not.toHaveBeenCalled();
   });
 
   it('verify() rejects an expired code', async () => {
@@ -36,7 +64,7 @@ describe('VerificationCodeService', () => {
     };
     const query = jest.fn().mockResolvedValueOnce([expiredRecord]);
     const db = { query } as unknown as DatabaseService;
-    const service = new VerificationCodeService(db, makeConfig());
+    const service = new VerificationCodeService(db, makeConfig(), makeEmailProvider());
 
     await expect(service.verify('user-1', 'email_verify', '123456')).rejects.toThrow('expired');
   });
@@ -51,7 +79,7 @@ describe('VerificationCodeService', () => {
     };
     const query = jest.fn().mockResolvedValueOnce([consumedRecord]);
     const db = { query } as unknown as DatabaseService;
-    const service = new VerificationCodeService(db, makeConfig());
+    const service = new VerificationCodeService(db, makeConfig(), makeEmailProvider());
 
     await expect(service.verify('user-1', 'email_verify', '123456')).rejects.toThrow('already been used');
   });
@@ -66,7 +94,7 @@ describe('VerificationCodeService', () => {
     };
     const query = jest.fn().mockResolvedValueOnce([record]);
     const db = { query } as unknown as DatabaseService;
-    const service = new VerificationCodeService(db, makeConfig({ maxAttempts: 5 }));
+    const service = new VerificationCodeService(db, makeConfig({ maxAttempts: 5 }), makeEmailProvider());
 
     await expect(service.verify('user-1', 'email_verify', '123456')).rejects.toThrow('Too many attempts');
   });
@@ -85,7 +113,7 @@ describe('VerificationCodeService', () => {
       .mockResolvedValueOnce([]) // UPDATE attempt_count
       .mockResolvedValueOnce([]); // UPDATE consumed_at
     const db = { query } as unknown as DatabaseService;
-    const service = new VerificationCodeService(db, makeConfig());
+    const service = new VerificationCodeService(db, makeConfig(), makeEmailProvider());
 
     await expect(service.verify('user-1', 'email_verify', '123456')).resolves.toBeUndefined();
     expect(query).toHaveBeenCalledTimes(3);

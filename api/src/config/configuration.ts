@@ -36,6 +36,20 @@ export interface AppConfig {
   payments: {
     webhookSecret: string;
   };
+  // Verification-code delivery (see identity/verification-code.service.ts
+  // and notifications/*). 'mock' (the default) just logs codes to the
+  // server log, same as always; 'resend' sends real email through
+  // Resend's API using RESEND_API_KEY. SMS delivery is still mock-only
+  // — a real SMS provider (Termii/Twilio/etc.) is a separate,
+  // follow-up integration behind the same shape once one is chosen.
+  notifications: {
+    email: {
+      provider: 'mock' | 'resend';
+      apiKey: string;
+      fromAddress: string;
+      fromName: string;
+    };
+  };
 }
 
 export default (): AppConfig => ({
@@ -62,5 +76,13 @@ export default (): AppConfig => ({
     .filter((origin) => origin.length > 0),
   payments: {
     webhookSecret: process.env.PAYMENT_WEBHOOK_SECRET ?? '',
+  },
+  notifications: {
+    email: {
+      provider: (process.env.EMAIL_PROVIDER ?? 'mock') as 'mock' | 'resend',
+      apiKey: process.env.RESEND_API_KEY ?? '',
+      fromAddress: process.env.EMAIL_FROM_ADDRESS ?? 'onboarding@resend.dev',
+      fromName: process.env.EMAIL_FROM_NAME ?? 'Naa here',
+    },
   },
 });

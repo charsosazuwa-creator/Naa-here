@@ -68,3 +68,19 @@ services:
       # happen and CORS has nothing to allow.
       - key: CORS_ALLOWED_ORIGINS
         value: ""
+      # Verification-code email delivery (see
+      # api/src/modules/notifications/). Defaults to 'mock', which just
+      # logs codes to the server log — the same behavior this app has
+      # always had, so a fresh Blueprint deploy still works with zero
+      # extra setup. Set EMAIL_PROVIDER to 'resend' and fill in
+      # RESEND_API_KEY (from https://resend.com) in the Render
+      # dashboard — not here, so the key never ends up committed to
+      # the repo — to send real verification emails.
+      - key: EMAIL_PROVIDER
+        value: mock
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM_ADDRESS
+        value: onboarding@resend.dev
+      - key: EMAIL_FROM_NAME
+        value: Naa here

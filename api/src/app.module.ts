@@ -19,6 +19,7 @@ import { DisputeModule } from './modules/dispute/dispute.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { HealthModule } from './modules/health/health.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { HealthModule } from './modules/health/health.module';
     DatabaseModule,
     AuthCommonModule,
     AuditModule,
+    NotificationsModule,
     TenancyModule,
     IdentityModule,
     VerificationModule,
