@@ -978,7 +978,7 @@ async function renderRoute() {
   try {
     const { body, after } = await viewFn();
     container.innerHTML = body;
-    document.title = `Naa here — Provider portal`;
+    document.title = `Naa here - Provider portal`;
     if (after) after();
   } catch (err) {
     container.innerHTML = `<div class="alert error" role="alert">${escapeHtml(err.message)}</div>`;
