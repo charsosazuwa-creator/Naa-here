@@ -1,0 +1,162 @@
+/*
+ * Design-system tokens (design package section 8): light/dark colors,
+ * spacing and type scale, shared by every page in this folder. No
+ * external font or icon library is loaded, so these pages need no
+ * build step and no network access besides calling the API.
+ */
+:root {
+  --color-primary: #2f6fed;
+  --color-primary-dark: #1d4fbf;
+  --color-bg: #ffffff;
+  --color-surface: #f7f8fa;
+  --color-text: #1a1d23;
+  --color-text-muted: #5b6270;
+  --color-border: #d8dbe1;
+  --color-error: #c22b2b;
+  --color-error-bg: #fbeaea;
+  --color-success: #1c7c3f;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --radius: 10px;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #14161a;
+    --color-surface: #1c1f24;
+    --color-text: #f0f1f3;
+    --color-text-muted: #a3a9b5;
+    --color-border: #33373f;
+    --color-error-bg: #3a1f1f;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  padding: var(--space-3);
+}
+
+.card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-5);
+}
+
+.card h1 {
+  font-size: 1.25rem;
+  margin: 0 0 var(--space-1);
+}
+
+.card p.subtitle {
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-4);
+  font-size: 0.9rem;
+}
+
+.field { margin-bottom: var(--space-3); }
+
+.field label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+.field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.field input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.field .hint { font-size: 0.78rem; color: var(--color-text-muted); margin-top: var(--space-1); }
+
+button.primary {
+  width: 100%;
+  padding: 11px 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+button.primary:hover { background: var(--color-primary-dark); }
+button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/*
+ * A link styled to look like a button (index.html's "Sign in" /
+ * "Create an account" entry points). Deliberately a real <a>, not a
+ * <button> nested inside one — nested interactive elements are
+ * invalid HTML and give assistive tech and keyboard navigation two
+ * conflicting targets for one action (Phase 6 accessibility pass).
+ */
+a.btn-link {
+  display: block;
+  width: 100%;
+  padding: 11px 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+a.btn-link:hover { background: var(--color-primary-dark); }
+a.btn-link:focus-visible { outline: 2px solid var(--color-primary-dark); outline-offset: 2px; }
+a.btn-link.secondary {
+  background: transparent;
+  color: var(--color-primary);
+  border: 1px solid var(--color-border);
+}
+
+.alert {
+  padding: var(--space-2) var(--space-3);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  margin-bottom: var(--space-3);
+}
+.alert.error { background: var(--color-error-bg); color: var(--color-error); }
+.alert.success { background: rgba(28,124,63,0.12); color: var(--color-success); }
+
+.links { margin-top: var(--space-4); font-size: 0.88rem; text-align: center; color: var(--color-text-muted); }
+.links a { color: var(--color-primary); text-decoration: none; }
+.links a:hover { text-decoration: underline; }
+
+[hidden] { display: none !important; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

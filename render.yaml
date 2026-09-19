@@ -1,0 +1,66 @@
+# Render Blueprint: deploys the whole app — API + database + the
+# static web front end (served by the API itself, see api/src/main.ts)
+# — as one web service plus one managed Postgres database.
+#
+# To use: push this repo to GitHub, then in the Render dashboard choose
+# "New +" > "Blueprint" and point it at the repo. Render reads this
+# file and provisions everything below in one go. See the deployment
+# guide for the exact click-by-click steps.
+#
+# If your Render account doesn't offer a free Postgres plan when this
+# runs, change `plan: free` under `databases` to the cheapest plan
+# Render currently offers — nothing else in this file needs to change.
+
+databases:
+  - name: naa-here-db
+    plan: free
+    databaseName: marketplace
+    user: naa_here_admin
+
+services:
+  - type: web
+    name: naa-here-app
+    runtime: node
+    plan: free
+    rootDir: .
+    buildCommand: cd api && npm ci && npm run build
+    startCommand: node api/scripts/deploy-start.js
+    healthCheckPath: /health/live
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render's managed Postgres requires TLS with a certificate not
+      # in Node's default trust store — see configuration.ts's pgSsl.
+      - key: PGSSL
+        value: "true"
+      # Render fills this in with the naa-here-db connection string
+      # (an owner/admin role). deploy-start.js runs migrations with
+      # it, then swaps to the app_runtime role below before starting
+      # the API — see db/migrations/003_app_runtime_role.sql for why.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: naa-here-db
+          property: connectionString
+      - key: APP_RUNTIME_PASSWORD
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PAYMENT_WEBHOOK_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_TOKEN_TTL_SECONDS
+        value: "900"
+      - key: REFRESH_TOKEN_TTL_DAYS
+        value: "30"
+      - key: VERIFICATION_CODE_TTL_MINUTES
+        value: "15"
+      - key: VERIFICATION_CODE_MAX_ATTEMPTS
+        value: "5"
+      - key: LOGIN_MAX_FAILED_ATTEMPTS
+        value: "5"
+      - key: LOGIN_LOCKOUT_MINUTES
+        value: "15"
+      # Empty on purpose: the web pages are served from this same
+      # origin (see main.ts), so no browser cross-origin requests ever
+      # happen and CORS has nothing to allow.
+      - key: CORS_ALLOWED_ORIGINS
+        value: ""

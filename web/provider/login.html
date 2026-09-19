@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Naa here — Provider portal sign in</title>
+<link rel="stylesheet" href="../auth/tokens.css" />
+</head>
+<body>
+<main class="card">
+  <img src="../auth/assets/logo.png" alt="Naa here" style="height:40px;display:block;margin-bottom:var(--space-3)" />
+  <h1>Provider portal</h1>
+  <p class="subtitle">Sign in with the account you registered your business with.</p>
+
+  <div id="alert" class="alert error" role="alert" hidden></div>
+
+  <form id="login-form" novalidate>
+    <div class="field">
+      <label for="identifier">Email or phone</label>
+      <input id="identifier" name="identifier" type="text" autocomplete="username" required />
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+    </div>
+    <button class="primary" type="submit" id="submit-btn">Sign in</button>
+  </form>
+
+  <p class="links">Don't have a business account yet? <a href="../auth/signup.html">Create one</a></p>
+</main>
+
+<script src="api.js"></script>
+<script>
+  if (isSignedIn()) {
+    window.location.href = 'index.html';
+  }
+
+  const form = document.getElementById('login-form');
+  const alertBox = document.getElementById('alert');
+  const submitBtn = document.getElementById('submit-btn');
+
+  function showError(message) {
+    alertBox.textContent = message;
+    alertBox.className = 'alert error';
+    alertBox.hidden = false;
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    alertBox.hidden = true;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Signing in…';
+
+    const identifier = form.identifier.value.trim();
+    const payload = { password: form.password.value };
+    if (identifier.includes('@')) payload.email = identifier;
+    else payload.phone = identifier;
+
+    try {
+      const result = await Api.login(payload);
+      setSession({ accessToken: result.accessToken, refreshToken: result.refreshToken, user: result.user });
+      window.location.href = 'index.html';
+    } catch (err) {
+      showError(err.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Sign in';
+    }
+  });
+</script>
+</body>
+</html>

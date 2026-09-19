@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Naa here — Create your account</title>
+<link rel="stylesheet" href="tokens.css" />
+</head>
+<body>
+<main class="card">
+  <img src="assets/logo.png" alt="Naa here" style="height:40px;display:block;margin-bottom:var(--space-3)" />
+  <h1>Create your account</h1>
+  <p class="subtitle">Free for customers and providers. Payments, when you add them later, stay in escrow until release — never with us.</p>
+
+  <div id="alert" class="alert error" role="alert" hidden></div>
+
+  <form id="signup-form" novalidate>
+    <div class="field">
+      <label for="fullName">Full name</label>
+      <input id="fullName" name="fullName" type="text" autocomplete="name" required />
+    </div>
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" />
+      <div class="hint">Or use a phone number below instead — one of the two is required.</div>
+    </div>
+    <div class="field">
+      <label for="phone">Phone (E.164, e.g. +2348012345678)</label>
+      <input id="phone" name="phone" type="tel" autocomplete="tel" />
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8" />
+      <div class="hint">At least 8 characters, with letters and digits.</div>
+    </div>
+    <button class="primary" type="submit" id="submit-btn">Create account</button>
+  </form>
+
+  <p class="links">Already have an account? <a href="signin.html">Sign in</a></p>
+</main>
+
+<script src="api.js"></script>
+<script>
+  const form = document.getElementById('signup-form');
+  const alertBox = document.getElementById('alert');
+  const submitBtn = document.getElementById('submit-btn');
+
+  function showError(message) {
+    alertBox.textContent = message;
+    alertBox.className = 'alert error';
+    alertBox.hidden = false;
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    alertBox.hidden = true;
+
+    const fullName = form.fullName.value.trim();
+    const email = form.email.value.trim();
+    const phone = form.phone.value.trim();
+    const password = form.password.value;
+
+    if (!email && !phone) {
+      showError('Enter an email or a phone number.');
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating account…';
+
+    try {
+      const payload = { fullName, password };
+      if (email) payload.email = email;
+      if (phone) payload.phone = phone;
+
+      const result = await AuthApi.register(payload);
+      const purpose = email ? 'email_verify' : 'phone_verify';
+      const params = new URLSearchParams({ userId: result.userId, purpose });
+      window.location.href = `verify.html?${params.toString()}`;
+    } catch (err) {
+      showError(err.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Create account';
+    }
+  });
+</script>
+</body>
+</html>

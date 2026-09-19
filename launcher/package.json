@@ -1,0 +1,10 @@
+{
+  "name": "naa-here-launcher",
+  "version": "1.0.0",
+  "private": true,
+  "description": "One-click local runner for the Naa here demo: embedded Postgres + the real API + the real static web UI.",
+  "dependencies": {
+    "embedded-postgres": "*",
+    "pg": "^8.12.0"
+  }
+}

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Naa here — Verify your account</title>
+<link rel="stylesheet" href="tokens.css" />
+</head>
+<body>
+<main class="card">
+  <img src="assets/logo.png" alt="Naa here" style="height:40px;display:block;margin-bottom:var(--space-3)" />
+  <h1>Enter your verification code</h1>
+  <p class="subtitle" id="subtitle">We sent a 6-digit code. In this milestone, the sender is a mock: it writes the code to the API server's log instead of sending a real message — check the API terminal.</p>
+
+  <div id="alert" class="alert error" role="alert" hidden></div>
+
+  <form id="verify-form" novalidate>
+    <div class="field">
+      <label for="code">6-digit code</label>
+      <input id="code" name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autofocus />
+    </div>
+    <button class="primary" type="submit" id="submit-btn">Verify</button>
+  </form>
+
+  <p class="links">Didn't get a code? <a href="#" id="resend-link">Resend it</a></p>
+</main>
+
+<script src="api.js"></script>
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const userId = params.get('userId');
+  const purpose = params.get('purpose') || 'email_verify';
+
+  const form = document.getElementById('verify-form');
+  const alertBox = document.getElementById('alert');
+  const submitBtn = document.getElementById('submit-btn');
+  const resendLink = document.getElementById('resend-link');
+
+  if (!userId) {
+    document.getElementById('subtitle').textContent = 'Missing account reference — go back and sign up again.';
+  }
+
+  function showError(message) {
+    alertBox.textContent = message;
+    alertBox.className = 'alert error';
+    alertBox.hidden = false;
+  }
+  function showSuccess(message) {
+    alertBox.textContent = message;
+    alertBox.className = 'alert success';
+    alertBox.hidden = false;
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    alertBox.hidden = true;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Verifying…';
+
+    try {
+      await AuthApi.verify({ userId, purpose, code: form.code.value.trim() });
+      showSuccess('Verified! Redirecting to sign in…');
+      setTimeout(() => (window.location.href = 'signin.html'), 1200);
+    } catch (err) {
+      showError(err.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Verify';
+    }
+  });
+
+  resendLink.addEventListener('click', async (event) => {
+    event.preventDefault();
+    alertBox.hidden = true;
+    try {
+      await AuthApi.resendVerification({ userId, purpose });
+      showSuccess('A new code has been sent (check the API server log).');
+    } catch (err) {
+      showError(err.message);
+    }
+  });
+</script>
+</body>
+</html>

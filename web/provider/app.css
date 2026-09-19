@@ -1,0 +1,188 @@
+/*
+ * Layout for the provider portal's app shell (topbar + sidebar +
+ * content), on top of ../auth/tokens.css's shared color/spacing/type
+ * tokens — this file adds no new color tokens of its own, so the
+ * portal and the auth pages stay visually consistent without
+ * duplicating the design system.
+ */
+
+body {
+  display: block;
+  align-items: initial;
+  justify-content: initial;
+  padding: 0;
+}
+
+.shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-4);
+  z-index: 10;
+}
+
+.topbar .brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+}
+.topbar .brand img { height: 24px; }
+
+.topbar .topbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.tenant-select {
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+
+.btn-plain {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+.btn-plain:hover { background: var(--color-surface); }
+
+.sidebar {
+  position: fixed;
+  top: 56px;
+  bottom: 0;
+  left: 0;
+  width: 220px;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg);
+  padding: var(--space-3) 0;
+  overflow-y: auto;
+}
+
+.sidebar nav a {
+  display: block;
+  padding: 10px var(--space-4);
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+.sidebar nav a:hover { background: var(--color-surface); }
+.sidebar nav a.active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-weight: 600;
+  border-right: 3px solid var(--color-primary);
+}
+
+main.content {
+  margin-top: 56px;
+  margin-left: 220px;
+  padding: var(--space-5);
+  flex: 1;
+  max-width: 960px;
+}
+
+body.no-tenant main.content { margin-left: 0; max-width: 480px; margin-left: auto; margin-right: auto; }
+body.no-tenant .sidebar { display: none; }
+
+h1.page-title { font-size: 1.4rem; margin: 0 0 var(--space-4); }
+
+.panel {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.panel h2 { font-size: 1.05rem; margin: 0 0 var(--space-3); }
+
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+table.data-table th, table.data-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+table.data-table th { color: var(--color-text-muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.02em; }
+table.data-table tbody tr:hover { background: var(--color-surface); }
+.empty-row td { color: var(--color-text-muted); font-style: italic; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.badge.status-verified, .badge.status-published, .badge.status-active, .badge.status-completed, .badge.status-paid, .badge.status-succeeded, .badge.status-resolved_customer, .badge.status-resolved_provider {
+  background: rgba(28,124,63,0.12); color: var(--color-success);
+}
+.badge.status-pending, .badge.status-requested, .badge.status-draft, .badge.status-confirmed, .badge.status-open, .badge.status-quoted {
+  background: rgba(47,111,237,0.12); color: var(--color-primary-dark);
+}
+.badge.status-rejected, .badge.status-cancelled, .badge.status-declined, .badge.status-suspended, .badge.status-no_show, .badge.status-failed, .badge.status-dismissed {
+  background: var(--color-error-bg); color: var(--color-error);
+}
+.badge.status-unverified, .badge.status-archived, .badge.status-in_progress, .badge.status-accepted {
+  background: var(--color-surface); color: var(--color-text-muted);
+}
+
+.actions-row { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3); }
+
+button.small {
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
+}
+button.small:hover { background: var(--color-surface); }
+button.small.primary { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+button.small.primary:hover { background: var(--color-primary-dark); }
+button.small.danger { color: var(--color-error); border-color: var(--color-error); }
+button.small.danger:hover { background: var(--color-error-bg); }
+button.small:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.inline-form { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: flex-end; margin-top: var(--space-3); }
+.inline-form .field { margin-bottom: 0; min-width: 160px; }
+
+.tenant-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  margin-bottom: var(--space-2);
+  cursor: pointer;
+}
+.tenant-card:hover { background: var(--color-surface); }
+.tenant-card .name { font-weight: 600; }
+.tenant-card .meta { color: var(--color-text-muted); font-size: 0.85rem; }

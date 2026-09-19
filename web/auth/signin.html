@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Naa here — Sign in</title>
+<link rel="stylesheet" href="tokens.css" />
+</head>
+<body>
+<main class="card">
+  <img src="assets/logo.png" alt="Naa here" style="height:40px;display:block;margin-bottom:var(--space-3)" />
+  <h1>Sign in</h1>
+  <p class="subtitle">Use the email or phone you registered with.</p>
+
+  <div id="alert" class="alert error" role="alert" hidden></div>
+
+  <form id="signin-form" novalidate>
+    <div class="field">
+      <label for="identifier">Email or phone</label>
+      <input id="identifier" name="identifier" type="text" autocomplete="username" required />
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+    </div>
+    <button class="primary" type="submit" id="submit-btn">Sign in</button>
+  </form>
+
+  <p class="links"><a href="forgot-password.html">Forgot password?</a> · <a href="signup.html">Create an account</a></p>
+</main>
+
+<script src="api.js"></script>
+<script>
+  const form = document.getElementById('signin-form');
+  const alertBox = document.getElementById('alert');
+  const submitBtn = document.getElementById('submit-btn');
+
+  function showError(message) {
+    alertBox.textContent = message;
+    alertBox.className = 'alert error';
+    alertBox.hidden = false;
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    alertBox.hidden = true;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Signing in…';
+
+    const identifier = form.identifier.value.trim();
+    const payload = { password: form.password.value };
+    if (identifier.includes('@')) payload.email = identifier;
+    else payload.phone = identifier;
+
+    try {
+      const result = await AuthApi.login(payload);
+      // Milestone-1 demo only: a real client stores the access token in
+      // memory and the refresh token httpOnly, never in localStorage.
+      sessionStorage.setItem('accessToken', result.accessToken);
+      sessionStorage.setItem('refreshToken', result.refreshToken);
+      alertBox.textContent = `Signed in as ${result.user.fullName}.`;
+      alertBox.className = 'alert success';
+      alertBox.hidden = false;
+      submitBtn.textContent = 'Signed in';
+    } catch (err) {
+      showError(err.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Sign in';
+    }
+  });
+</script>
+</body>
+</html>
