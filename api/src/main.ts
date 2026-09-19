@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { join } from 'path';
+import { existsSync } from 'fs';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import type { Request, Response, NextFunction } from 'express';
@@ -24,8 +25,21 @@ async function bootstrap() {
   // Serve the static web front end from this same origin (the web/
   // folder alongside api/ at the repo root — see render.yaml), so no
   // browser cross-origin requests ever happen and corsAllowedOrigins
-  // can stay empty in production. dist/main.js sits at api/dist/,
-  // so web/ is two levels up from __dirname at runtime.
+  // can stay empty in production. Depending on tsconfig, the compiled
+  // main.js can land at either api/dist/main.js or api/dist/src/main.js
+  // (this project's tsconfig does the latter — see deploy-start.js's
+  // findMain() for the same two-candidate check), so try both instead
+  // of assuming one.
+  const webDirCandidates = [
+    join(__dirname, '..', '..', 'web'),
+    join(__dirname, '..', '..', '..', 'web'),
+  ];
+  const webDir = webDirCandidates.find((p) => existsSync(p));
+  if (!webDir) {
+    throw new Error(
+      `Could not find the web/ folder to serve (checked: ${webDirCandidates.join(', ')})`,
+    );
+  }
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.path === '/') {
       res.redirect('/auth/index.html');
@@ -33,7 +47,7 @@ async function bootstrap() {
     }
     next();
   });
-  app.useStaticAssets(join(__dirname, '..', '..', 'web'));
+  app.useStaticAssets(webDir);
 
   // Phase 6 hardening: an explicit allowlist rather than
   // app.enableCors() with no options (which reflects every Origin
