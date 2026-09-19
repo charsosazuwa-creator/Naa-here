@@ -243,11 +243,20 @@ export class BookingService {
 
       assertValidTransition(existing.status, 'cancelled');
 
+      // existing.tenant_id is only needed above to confirm the row exists
+      // under RLS (see the SELECT's JOIN) — the UPDATE itself is scoped
+      // by id alone and relies entirely on the booking table's own RLS
+      // policy to restrict which row can actually be touched, so it must
+      // not be passed as a query parameter that's never referenced in
+      // the SQL text: pg cannot infer a type for a placeholder that
+      // never appears in the query, and errors with "could not
+      // determine data type of parameter $2" (caught live-testing
+      // Milestone 3's cancel-my-booking flow).
       const { rows } = await client.query(
-        `UPDATE booking SET status = 'cancelled', cancellation_reason = $3, updated_at = now()
+        `UPDATE booking SET status = 'cancelled', cancellation_reason = $2, updated_at = now()
          WHERE id = $1
          RETURNING id, tenant_id, service_id, customer_id, staff_user_id, status, starts_at, ends_at, notes, cancellation_reason, policy_snapshot`,
-        [bookingId, existing.tenant_id, reason ?? null],
+        [bookingId, reason ?? null],
       );
 
       return toBooking(rows[0]);
