@@ -91,6 +91,12 @@ const Api = {
   createTenant: (payload) => apiRequest('/tenants', { method: 'POST', body: payload }),
   getTenant: (tenantId) => apiRequest(`/tenants/${tenantId}`),
 
+  // tenancy — locations and staff (Milestone 2 provider setup).
+  listLocations: (tenantId) => apiRequest(`/tenants/${tenantId}/locations`),
+  createLocation: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/locations`, { method: 'POST', body: payload }),
+  listStaff: (tenantId) => apiRequest(`/tenants/${tenantId}/staff`),
+  inviteStaff: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/staff`, { method: 'POST', body: payload }),
+
   // verification
   listVerification: (tenantId) => apiRequest(`/tenants/${tenantId}/verification`),
   submitVerification: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/verification`, { method: 'POST', body: payload }),
@@ -101,6 +107,14 @@ const Api = {
   createService: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/services`, { method: 'POST', body: payload }),
   setServiceStatus: (tenantId, serviceId, status) =>
     apiRequest(`/tenants/${tenantId}/services/${serviceId}/status`, { method: 'PATCH', body: { status } }),
+
+  // catalogue — weekly availability rules and one-off blocked time.
+  // There is no GET for blocked time on the backend yet (only POST),
+  // so this portal can add blocked time but can't list what's already
+  // there — see views.availability's note in app.js.
+  listAvailabilityRules: (tenantId) => apiRequest(`/tenants/${tenantId}/availability-rules`),
+  addAvailabilityRule: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/availability-rules`, { method: 'POST', body: payload }),
+  addBlockedTime: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/blocked-time`, { method: 'POST', body: payload }),
 
   // bookings
   listBookings: (tenantId) => apiRequest(`/tenants/${tenantId}/bookings`),

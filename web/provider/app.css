@@ -173,6 +173,8 @@ button.small:disabled { opacity: 0.5; cursor: not-allowed; }
 .inline-form { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: flex-end; margin-top: var(--space-3); }
 .inline-form .field { margin-bottom: 0; min-width: 160px; }
 
+.field label input[type="checkbox"] { width: auto; }
+
 .tenant-card {
   display: flex;
   justify-content: space-between;

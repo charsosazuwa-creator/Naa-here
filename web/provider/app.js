@@ -15,17 +15,33 @@ const state = {
   user: null,
   tenants: [],
   tenantId: null,
+  // Client-side only: the backend has no GET for blocked time (only
+  // POST), so this is the sole record of what's been added, and only
+  // for this browser tab's session — it's not fetched from anywhere.
+  blockedTimeAdded: [],
 };
 
 const NAV_ITEMS = [
   { key: 'overview', label: 'Overview' },
   { key: 'verification', label: 'Verification' },
+  { key: 'locations', label: 'Locations' },
   { key: 'services', label: 'Services' },
+  { key: 'availability', label: 'Availability' },
+  { key: 'staff', label: 'Staff' },
   { key: 'bookings', label: 'Bookings' },
   { key: 'job-requests', label: 'Job requests' },
   { key: 'disputes', label: 'Disputes' },
   { key: 'payouts', label: 'Payouts' },
 ];
+
+/** Fixed service categories (db/migrations/002_provider_crm.sql seeds exactly these three; there's no list endpoint for them yet). */
+const SERVICE_CATEGORIES = [
+  { id: 1, name: 'Barber and salon appointments' },
+  { id: 2, name: 'Accommodation' },
+  { id: 3, name: 'Artisan and on-demand jobs' },
+];
+
+const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -233,10 +249,157 @@ views.verification = async () => {
 };
 
 // ---------------------------------------------------------------------
+// Locations
+// ---------------------------------------------------------------------
+views.locations = async () => {
+  const locations = await Api.listLocations(state.tenantId);
+
+  const rows = locations.length
+    ? locations
+        .map(
+          (l) => `
+      <tr>
+        <td>${escapeHtml(l.label)}${l.isPrimary ? ' <span class="badge status-verified">Primary</span>' : ''}</td>
+        <td>${escapeHtml(l.addressLine)}</td>
+        <td>${escapeHtml(l.city)}</td>
+        <td>${escapeHtml(l.countryCode)}</td>
+      </tr>`,
+        )
+        .join('')
+    : '<tr class="empty-row"><td colspan="4">No locations yet.</td></tr>';
+
+  const body = `
+    <h1 class="page-title">Locations</h1>
+    <div class="panel">
+      <table class="data-table">
+        <thead><tr><th>Label</th><th>Address</th><th>City</th><th>Country</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>Add a location</h2>
+      <div id="location-alert" class="alert error" role="alert" hidden></div>
+      <form id="create-location-form" novalidate>
+        <div class="field"><label for="l-label">Label</label><input id="l-label" placeholder="e.g. Main branch" required /></div>
+        <div class="field"><label for="l-address">Address</label><input id="l-address" required /></div>
+        <div class="field"><label for="l-city">City</label><input id="l-city" required /></div>
+        <div class="field">
+          <label for="l-country">Country</label>
+          <select id="l-country" class="tenant-select">
+            <option value="NG">Nigeria</option>
+            <option value="KE">Kenya</option>
+            <option value="GH">Ghana</option>
+            <option value="ZA">South Africa</option>
+          </select>
+        </div>
+        <div class="field"><label for="l-lat">Latitude (optional)</label><input id="l-lat" type="number" step="any" /></div>
+        <div class="field"><label for="l-lng">Longitude (optional)</label><input id="l-lng" type="number" step="any" /></div>
+        <div class="field">
+          <label for="l-primary"><input id="l-primary" type="checkbox" style="width:auto;margin-right:6px" />Set as primary location</label>
+        </div>
+        <button class="primary" type="submit">Add location</button>
+      </form>
+    </div>
+  `;
+
+  const after = () => {
+    const form = document.getElementById('create-location-form');
+    const alertBox = document.getElementById('location-alert');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      alertBox.hidden = true;
+      try {
+        const lat = document.getElementById('l-lat').value;
+        const lng = document.getElementById('l-lng').value;
+        await Api.createLocation(state.tenantId, {
+          label: document.getElementById('l-label').value.trim(),
+          addressLine: document.getElementById('l-address').value.trim(),
+          city: document.getElementById('l-city').value.trim(),
+          countryCode: document.getElementById('l-country').value,
+          latitude: lat === '' ? undefined : Number(lat),
+          longitude: lng === '' ? undefined : Number(lng),
+          isPrimary: document.getElementById('l-primary').checked,
+        });
+        renderRoute();
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.hidden = false;
+      }
+    });
+  };
+
+  return { title: 'Locations', body, after };
+};
+
+// ---------------------------------------------------------------------
+// Staff
+// ---------------------------------------------------------------------
+views.staff = async () => {
+  const staff = await Api.listStaff(state.tenantId);
+
+  const rows = staff.length
+    ? staff
+        .map(
+          (s) => `
+      <tr>
+        <td>${escapeHtml(s.fullName)}</td>
+        <td>${escapeHtml(s.email ?? '—')}</td>
+        <td>${escapeHtml(s.roleCode)}</td>
+        <td>${badge(s.status)}</td>
+      </tr>`,
+        )
+        .join('')
+    : '<tr class="empty-row"><td colspan="4">No staff yet — just the owner.</td></tr>';
+
+  const body = `
+    <h1 class="page-title">Staff</h1>
+    <div class="panel">
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>Invite staff</h2>
+      <p style="color:var(--color-text-muted);font-size:0.85rem;margin-top:-8px">
+        Only someone who already has a Naa here account can be invited — they need to sign up first,
+        then accept the invitation from their own account.
+      </p>
+      <div id="staff-alert" class="alert error" role="alert" hidden></div>
+      <form id="invite-staff-form" novalidate>
+        <div class="field"><label for="st-email">Email</label><input id="st-email" type="email" required /></div>
+        <button class="primary" type="submit">Send invite</button>
+      </form>
+    </div>
+  `;
+
+  const after = () => {
+    const form = document.getElementById('invite-staff-form');
+    const alertBox = document.getElementById('staff-alert');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      alertBox.hidden = true;
+      try {
+        await Api.inviteStaff(state.tenantId, {
+          email: document.getElementById('st-email').value.trim(),
+          roleCode: 'staff',
+        });
+        renderRoute();
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.hidden = false;
+      }
+    });
+  };
+
+  return { title: 'Staff', body, after };
+};
+
+// ---------------------------------------------------------------------
 // Services
 // ---------------------------------------------------------------------
 views.services = async () => {
-  const services = await Api.listServices(state.tenantId);
+  const [services, locations] = await Promise.all([Api.listServices(state.tenantId), Api.listLocations(state.tenantId)]);
 
   const rows = services.length
     ? services
@@ -270,7 +433,19 @@ views.services = async () => {
       <div id="service-alert" class="alert error" role="alert" hidden></div>
       <form id="create-service-form" novalidate>
         <div class="field"><label for="s-name">Name</label><input id="s-name" required /></div>
-        <div class="field"><label for="s-category">Category id</label><input id="s-category" type="number" value="1" required /></div>
+        <div class="field">
+          <label for="s-category">Category</label>
+          <select id="s-category" class="tenant-select">
+            ${SERVICE_CATEGORIES.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label for="s-location">Location</label>
+          <select id="s-location" class="tenant-select">
+            <option value="">No specific location</option>
+            ${locations.map((l) => `<option value="${l.id}">${escapeHtml(l.label)}</option>`).join('')}
+          </select>
+        </div>
         <div class="field"><label for="s-price">Price (minor units — 0 for quote-per-job)</label><input id="s-price" type="number" min="0" value="0" required /></div>
         <div class="field">
           <label for="s-currency">Currency</label>
@@ -298,9 +473,11 @@ views.services = async () => {
       event.preventDefault();
       alertBox.hidden = true;
       try {
+        const locationId = document.getElementById('s-location').value;
         await Api.createService(state.tenantId, {
           name: document.getElementById('s-name').value.trim(),
           categoryId: Number(document.getElementById('s-category').value),
+          locationId: locationId || undefined,
           priceMinorUnits: Number(document.getElementById('s-price').value),
           currencyCode: document.getElementById('s-currency').value,
           durationMinutes: Number(document.getElementById('s-duration').value) || undefined,
@@ -315,6 +492,152 @@ views.services = async () => {
 
   return { title: 'Services', body, after };
 };
+
+// ---------------------------------------------------------------------
+// Availability
+// ---------------------------------------------------------------------
+views.availability = async () => {
+  const [rules, services] = await Promise.all([Api.listAvailabilityRules(state.tenantId), Api.listServices(state.tenantId)]);
+  const blocked = state.tenantId === currentBlockedTenantId ? state.blockedTimeAdded : [];
+
+  const serviceOptions = (selectedId) => `
+    <option value="">All services</option>
+    ${services.map((s) => `<option value="${s.id}" ${s.id === selectedId ? 'selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}
+  `;
+
+  const ruleRows = rules.length
+    ? rules
+        .map(
+          (r) => `
+      <tr>
+        <td>${DAYS_OF_WEEK[r.dayOfWeek]}</td>
+        <td>${escapeHtml(r.startTime)}</td>
+        <td>${escapeHtml(r.endTime)}</td>
+        <td>${r.serviceId ? escapeHtml(services.find((s) => s.id === r.serviceId)?.name ?? r.serviceId) : 'All services'}</td>
+      </tr>`,
+        )
+        .join('')
+    : '<tr class="empty-row"><td colspan="4">No weekly hours set yet.</td></tr>';
+
+  const blockedRows = blocked.length
+    ? blocked
+        .map(
+          (b) => `
+      <tr>
+        <td>${formatDate(b.startsAt)}</td>
+        <td>${formatDate(b.endsAt)}</td>
+        <td>${escapeHtml(b.reason ?? '—')}</td>
+      </tr>`,
+        )
+        .join('')
+    : '<tr class="empty-row"><td colspan="3">None added this session.</td></tr>';
+
+  const body = `
+    <h1 class="page-title">Availability</h1>
+
+    <div class="panel">
+      <h2>Weekly working hours</h2>
+      <table class="data-table">
+        <thead><tr><th>Day</th><th>Start</th><th>End</th><th>Applies to</th></tr></thead>
+        <tbody>${ruleRows}</tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>Add a weekly rule</h2>
+      <div id="rule-alert" class="alert error" role="alert" hidden></div>
+      <form id="create-rule-form" novalidate class="inline-form">
+        <div class="field">
+          <label for="r-day">Day</label>
+          <select id="r-day" class="tenant-select">
+            ${DAYS_OF_WEEK.map((d, i) => `<option value="${i}">${d}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label for="r-start">Start (HH:mm)</label><input id="r-start" type="time" value="09:00" required /></div>
+        <div class="field"><label for="r-end">End (HH:mm)</label><input id="r-end" type="time" value="17:00" required /></div>
+        <div class="field">
+          <label for="r-service">Service</label>
+          <select id="r-service" class="tenant-select">${serviceOptions()}</select>
+        </div>
+        <button class="primary" type="submit">Add rule</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h2>Blocked time</h2>
+      <p style="color:var(--color-text-muted);font-size:0.85rem;margin-top:-8px">
+        One-off closures (holidays, days off). The list below only shows what you've added in this
+        browser tab this session — there's no way yet to fetch previously-added blocked time back
+        from the server.
+      </p>
+      <table class="data-table">
+        <thead><tr><th>Starts</th><th>Ends</th><th>Reason</th></tr></thead>
+        <tbody>${blockedRows}</tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>Add blocked time</h2>
+      <div id="blocked-alert" class="alert error" role="alert" hidden></div>
+      <form id="create-blocked-form" novalidate class="inline-form">
+        <div class="field"><label for="b-start">Starts</label><input id="b-start" type="datetime-local" required /></div>
+        <div class="field"><label for="b-end">Ends</label><input id="b-end" type="datetime-local" required /></div>
+        <div class="field">
+          <label for="b-service">Service</label>
+          <select id="b-service" class="tenant-select">${serviceOptions()}</select>
+        </div>
+        <div class="field"><label for="b-reason">Reason (optional)</label><input id="b-reason" placeholder="e.g. Public holiday" /></div>
+        <button class="primary" type="submit">Add blocked time</button>
+      </form>
+    </div>
+  `;
+
+  const after = () => {
+    const ruleForm = document.getElementById('create-rule-form');
+    const ruleAlert = document.getElementById('rule-alert');
+    ruleForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      ruleAlert.hidden = true;
+      try {
+        const serviceId = document.getElementById('r-service').value;
+        await Api.addAvailabilityRule(state.tenantId, {
+          dayOfWeek: Number(document.getElementById('r-day').value),
+          startTime: document.getElementById('r-start').value,
+          endTime: document.getElementById('r-end').value,
+          serviceId: serviceId || undefined,
+        });
+        renderRoute();
+      } catch (err) {
+        ruleAlert.textContent = err.message;
+        ruleAlert.hidden = false;
+      }
+    });
+
+    const blockedForm = document.getElementById('create-blocked-form');
+    const blockedAlert = document.getElementById('blocked-alert');
+    blockedForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      blockedAlert.hidden = true;
+      try {
+        const serviceId = document.getElementById('b-service').value;
+        const startsAt = new Date(document.getElementById('b-start').value).toISOString();
+        const endsAt = new Date(document.getElementById('b-end').value).toISOString();
+        const reason = document.getElementById('b-reason').value.trim() || undefined;
+        const created = await Api.addBlockedTime(state.tenantId, { startsAt, endsAt, reason, serviceId: serviceId || undefined });
+        if (currentBlockedTenantId !== state.tenantId) {
+          state.blockedTimeAdded = [];
+          currentBlockedTenantId = state.tenantId;
+        }
+        state.blockedTimeAdded.push(created);
+        renderRoute();
+      } catch (err) {
+        blockedAlert.textContent = err.message;
+        blockedAlert.hidden = false;
+      }
+    });
+  };
+
+  return { title: 'Availability', body, after };
+};
+let currentBlockedTenantId = null;
 
 // ---------------------------------------------------------------------
 // Bookings

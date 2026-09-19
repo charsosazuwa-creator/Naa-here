@@ -27,3 +27,7 @@ Thumbs.db
 # editor
 .vscode/
 .idea/
+
+# local one-click demo runner: generated secrets and embedded-Postgres data
+launcher/.secrets.json
+launcher/pgdata/
