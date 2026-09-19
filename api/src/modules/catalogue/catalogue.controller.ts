@@ -11,10 +11,12 @@ import { CreateAvailabilityRuleDto, CreateBlockedTimeDto } from './dto/availabil
 /**
  * Every route here is tenant-member-only, including the service list —
  * this module is the provider's own CRM view of their catalogue, not
- * public discovery. Customers browsing published services by location
- * is a Phase 3 concern (design section 11, "Search and location"
- * belongs to the booking engine's customer-facing surface) and needs
- * its own unauthenticated route; it is intentionally not added here.
+ * public discovery. Customers browsing published services across
+ * tenants is served by the unauthenticated DiscoveryController
+ * (../discovery/discovery.controller.ts, GET /discover/services and
+ * /discover/services/:id) added for Milestone 3, which relies on the
+ * public-read RLS policies in migration 008 rather than duplicating
+ * any of this module's tenant-scoped queries.
  */
 @Controller('tenants/:tenantId')
 @UseGuards(JwtAuthGuard, TenantRoleGuard)

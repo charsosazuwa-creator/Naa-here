@@ -42,7 +42,12 @@ async function bootstrap() {
   }
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.path === '/') {
-      res.redirect('/auth/index.html');
+      // Milestone 3: the customer-facing browse/book app is now the
+      // real front door (web/customer/index.html); the Milestone-1
+      // identity demo landing page (web/auth/index.html) is still
+      // reachable directly, and web/customer's own pages link out to
+      // web/auth/signin.html and signup.html for account creation.
+      res.redirect('/customer/index.html');
       return;
     }
     next();

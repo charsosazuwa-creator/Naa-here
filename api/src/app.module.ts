@@ -9,6 +9,7 @@ import { IdentityModule } from './modules/identity/identity.module';
 import { TenancyModule } from './modules/tenancy/tenancy.module';
 import { VerificationModule } from './modules/verification/verification.module';
 import { CatalogueModule } from './modules/catalogue/catalogue.module';
+import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { FilesModule } from './modules/files/files.module';
 import { CrmModule } from './modules/crm/crm.module';
 import { BookingModule } from './modules/booking/booking.module';
@@ -33,6 +34,7 @@ import { HealthModule } from './modules/health/health.module';
     IdentityModule,
     VerificationModule,
     CatalogueModule,
+    DiscoveryModule,
     FilesModule,
     CrmModule,
     BookingModule,

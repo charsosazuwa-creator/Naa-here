@@ -1,0 +1,75 @@
+/*
+ * Customer app shell — built on the same ../provider/app.css shell
+ * (topbar + content, ../auth/tokens.css tokens underneath) but without
+ * a sidebar: there's no tenant to switch between, just Browse and My
+ * bookings, so this overrides the provider shell's narrow no-tenant
+ * content width and adds the nav + service-card styles that file has
+ * no equivalent for.
+ */
+
+body.no-tenant main.content {
+  max-width: 960px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.customer-nav {
+  display: flex;
+  gap: var(--space-4);
+}
+.customer-nav a {
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.customer-nav a:hover,
+.customer-nav a.active {
+  color: var(--color-primary);
+}
+
+.filters-bar {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: var(--space-4);
+}
+.filters-bar .field { margin-bottom: 0; min-width: 150px; }
+
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-3);
+}
+
+.service-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  background: var(--color-bg);
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+.service-card:hover { background: var(--color-surface); }
+.service-card .name { font-weight: 600; margin-bottom: 4px; }
+.service-card .tenant { color: var(--color-text-muted); font-size: 0.85rem; margin-bottom: var(--space-2); }
+.service-card .price { font-weight: 600; color: var(--color-primary-dark); }
+.service-card .meta { color: var(--color-text-muted); font-size: 0.82rem; margin-top: 4px; }
+
+.back-link { display: inline-block; margin-bottom: var(--space-3); font-size: 0.88rem; color: var(--color-text-muted); text-decoration: none; }
+.back-link:hover { color: var(--color-primary); }
+
+.slot-list { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0; }
+.slot-list .day-block {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.85rem;
+  min-width: 140px;
+}
+.slot-list .day-block .day { font-weight: 600; margin-bottom: 2px; }
+
+.empty-state { color: var(--color-text-muted); font-style: italic; padding: var(--space-4) 0; }
