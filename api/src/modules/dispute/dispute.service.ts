@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { DatabaseService } from '../../database/database.service';
 import { AuditService } from '../audit/audit.service';
@@ -77,23 +78,23 @@ export class DisputeService {
         throw new ForbiddenException('Only the customer or the business can raise a dispute on this booking.');
       }
 
-      const { rows: inserted } = await client.query(`INSERT INTO dispute (tenant_id, booking_id, raised_by, reason, details) VALUES ($1, $2, $3, $4, $5) RETURNING id`, [
-        tenantId,
-        bookingId,
-        raisedBy,
-        reason,
-        details ?? null,
-      ]);
-      const disputeId = inserted[0].id as string;
       // AC "the system must generate a case reference" — short and
       // stable, derived from the row's own id rather than a separate
       // sequence, so there's nothing else that can drift out of sync.
+      // The id is generated here (rather than left to the column's
+      // DEFAULT gen_random_uuid()) so the case number can be computed
+      // and inserted in the SAME statement — case_number is NOT
+      // NULL/UNIQUE (migration 014), so a two-step insert-then-update
+      // (the previous approach) fails the NOT NULL constraint on the
+      // insert before the case number is ever set.
+      const disputeId = randomUUID();
       const caseNumber = `DSP-${disputeId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 
       const { rows } = await client.query(
-        `UPDATE dispute SET case_number = $2 WHERE id = $1
+        `INSERT INTO dispute (id, case_number, tenant_id, booking_id, raised_by, reason, details)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING id, case_number, tenant_id, booking_id, raised_by, reason, details, status, resolution_notes, created_at, resolved_at`,
-        [disputeId, caseNumber],
+        [disputeId, caseNumber, tenantId, bookingId, raisedBy, reason, details ?? null],
       );
 
       // Place the hold: the booking's charge entry can no longer count
