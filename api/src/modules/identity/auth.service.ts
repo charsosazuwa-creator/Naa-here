@@ -225,10 +225,22 @@ export class AuthService {
     await this.verificationCodes.verify(user.id, 'password_reset', code);
 
     const passwordHash = await hashPassword(newPassword);
-    await this.db.query(`UPDATE app_user SET password_hash = $2, updated_at = now() WHERE id = $1`, [
-      user.id,
-      passwordHash,
-    ]);
+    // Receiving and entering a code sent to the account's own email or
+    // phone is at least as strong a proof of ownership as the signup
+    // verification step, so a successful reset also verifies the
+    // channel it went through and activates the account. Without
+    // this, an account that never finished the original signup-time
+    // verification (e.g. the browser tab was closed before entering
+    // the code) had no self-service way back in: this same identifier
+    // has no user ID to resend a fresh code against.
+    const verifiedChannelColumn = user.email ? 'email_verified_at' : 'phone_verified_at';
+    await this.db.query(
+      `UPDATE app_user
+       SET password_hash = $2, updated_at = now(), status = 'active',
+           ${verifiedChannelColumn} = COALESCE(${verifiedChannelColumn}, now())
+       WHERE id = $1`,
+      [user.id, passwordHash],
+    );
 
     // A password reset invalidates every existing session (master
     // prompt section 8: "password reset ending old sessions").
