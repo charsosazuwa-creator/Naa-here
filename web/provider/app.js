@@ -2031,7 +2031,7 @@ function renderSidebar() {
   document.body.classList.remove('no-tenant');
   sidebar.hidden = false;
   nav.innerHTML = NAV_ITEMS.map(
-    (item) => `<a href="#/t/${tenantId}/${item.key}" class="${item.key === section ? 'active' : ''}">${item.label}</a>`,
+    (item) => `<a href="#/t/${tenantId}/${item.key}" class="${item.key === section || section.startsWith(item.key + '/') ? 'active' : ''}">${item.label}</a>`,
   ).join('');
 }
 
@@ -2060,7 +2060,11 @@ async function renderRoute() {
   renderSidebar();
   renderTenantSwitcher();
 
-  const viewFn = tenantId ? views[section] : views.tenants;
+  // `section` can be a sub-route like "groups/<groupId>" (see
+  // views.groups, which parses the remainder itself) -- only the
+  // first path segment picks which view function to call.
+  const baseSection = section.split('/')[0];
+  const viewFn = tenantId ? views[baseSection] : views.tenants;
   const container = document.getElementById('view');
 
   if (!viewFn) {
