@@ -1583,6 +1583,15 @@ async function renderGroupDetail(groupId) {
       isMember
         ? `
     <div class="panel">
+      <h2>Group chat</h2>
+      <div id="group-chat-messages" style="max-height:320px;overflow-y:auto;border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:10px;background:var(--color-surface)"></div>
+      <form id="group-chat-form" class="inline-form" novalidate>
+        <div class="field" style="flex:1"><input id="gc-input" placeholder="Message the group…" autocomplete="off" required /></div>
+        <button class="small primary" type="submit">Send</button>
+      </form>
+    </div>
+
+    <div class="panel">
       <h2>Post to the group</h2>
       <div id="group-post-alert" class="alert error" role="alert" hidden></div>
       <form id="group-post-form" novalidate>
@@ -1693,6 +1702,28 @@ async function renderGroupDetail(groupId) {
   `;
 
   const after = () => {
+    if (isMember) {
+      const chatForm = document.getElementById('group-chat-form');
+      if (chatForm) {
+        chatForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const input = document.getElementById('gc-input');
+          const text = input.value.trim();
+          if (!text) return;
+          input.value = '';
+          const container = document.getElementById('group-chat-messages');
+          try {
+            await Api.sendGroupMessage(groupId, text);
+            await pollGroupChat(groupId, container);
+          } catch (err) {
+            window.alert(err.message);
+            input.value = text;
+          }
+        });
+      }
+      initGroupChat(groupId);
+    }
+
     const joinBtn = document.getElementById('group-join-btn');
     if (joinBtn) {
       joinBtn.addEventListener('click', () => runAction(joinBtn, () => Api.joinGroup(groupId)));
@@ -1857,6 +1888,101 @@ async function renderGroupDetail(groupId) {
   return { title: group.name, body, after };
 }
 
+// Group chat state lives outside any view function since it's a
+// setInterval polling loop that must keep running (and get torn down
+// on navigation) independently of a single renderGroupDetail() call.
+const groupChatState = { timer: null, lastId: null };
+
+function stopGroupChatPolling() {
+  if (groupChatState.timer) {
+    clearInterval(groupChatState.timer);
+    groupChatState.timer = null;
+  }
+  groupChatState.lastId = null;
+}
+
+function renderChatMessageHtml(m) {
+  const mine = m.authorUserId === state.user?.id;
+  return `
+    <div class="chat-message" data-message-id="${m.id}" style="margin-bottom:10px">
+      <div style="font-size:0.78rem;color:var(--color-text-muted)">
+        <strong>${escapeHtml(m.authorName)}</strong> · ${formatDate(m.createdAt)}
+        ${mine ? `<button class="small danger" data-action="chat-delete" data-message="${m.id}" style="float:right;padding:1px 6px;font-size:0.72rem">Delete</button>` : ''}
+      </div>
+      <div>${escapeHtml(m.body)}</div>
+    </div>`;
+}
+
+function wireGroupChatDeleteButtons(groupId, container) {
+  container.querySelectorAll('[data-action="chat-delete"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        await Api.deleteGroupMessage(groupId, btn.dataset.message);
+        const row = btn.closest('.chat-message');
+        if (row) row.remove();
+      } catch (err) {
+        window.alert(err.message);
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+function appendChatMessages(container, messages) {
+  if (container.dataset.empty === 'true') container.innerHTML = '';
+  messages.forEach((m) => container.insertAdjacentHTML('beforeend', renderChatMessageHtml(m)));
+  container.dataset.empty = 'false';
+  container.scrollTop = container.scrollHeight;
+}
+
+async function pollGroupChat(groupId, container) {
+  if (!container || !document.body.contains(container)) {
+    // The view moved on since this poll was scheduled (or this direct
+    // call after sending) -- nothing left to update.
+    stopGroupChatPolling();
+    return;
+  }
+  try {
+    const fresh = await Api.listGroupMessages(groupId, groupChatState.lastId || undefined);
+    if (fresh.length) {
+      appendChatMessages(container, fresh);
+      groupChatState.lastId = fresh[fresh.length - 1].id;
+      wireGroupChatDeleteButtons(groupId, container);
+    }
+  } catch {
+    // A transient poll failure isn't worth interrupting the chat over -- just try again next tick.
+  }
+}
+
+async function initGroupChat(groupId) {
+  stopGroupChatPolling();
+  const container = document.getElementById('group-chat-messages');
+  if (!container) return;
+
+  try {
+    const messages = await Api.listGroupMessages(groupId);
+    if (messages.length) {
+      container.dataset.empty = 'false';
+      container.innerHTML = messages.map(renderChatMessageHtml).join('');
+      groupChatState.lastId = messages[messages.length - 1].id;
+    } else {
+      container.dataset.empty = 'true';
+      container.innerHTML = '<p style="color:var(--color-text-muted);font-style:italic;margin:0">No messages yet — say hello.</p>';
+    }
+    container.scrollTop = container.scrollHeight;
+    wireGroupChatDeleteButtons(groupId, container);
+  } catch (err) {
+    container.innerHTML = `<div class="alert error" role="alert">${escapeHtml(err.message)}</div>`;
+    return;
+  }
+
+  // A 4s poll is a deliberate, simple stand-in for real-time push:
+  // this project has no websocket/SSE layer anywhere else to hang a
+  // live channel off of (see group-chat.service.ts).
+  groupChatState.timer = setInterval(() => pollGroupChat(groupId, container), 4000);
+}
+
 views.groups = async () => {
   const { section } = parseRoute();
   const match = section.match(/^groups\/([^/]+)$/);
@@ -1975,7 +2101,10 @@ async function init() {
     return;
   }
 
-  window.addEventListener('hashchange', renderRoute);
+  window.addEventListener('hashchange', () => {
+    stopGroupChatPolling();
+    renderRoute();
+  });
   await renderRoute();
 }
 

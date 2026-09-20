@@ -226,6 +226,11 @@ const Api = {
   listGroupReports: (groupId) => apiRequest(`/groups/${groupId}/moderation/reports`),
   decideGroupReport: (groupId, reportId, payload) =>
     apiRequest(`/groups/${groupId}/moderation/reports/${reportId}/decide`, { method: 'POST', body: payload }),
+  // Group chat -- polled, not pushed (see group-chat.service.ts).
+  listGroupMessages: (groupId, afterId) => apiRequest(`/groups/${groupId}/messages${afterId ? `?after=${afterId}` : ''}`),
+  sendGroupMessage: (groupId, body) => apiRequest(`/groups/${groupId}/messages`, { method: 'POST', body: { body } }),
+  deleteGroupMessage: (groupId, messageId) => apiRequest(`/groups/${groupId}/messages/${messageId}`, { method: 'DELETE' }),
+
   async uploadGroupPostAttachment(groupId, postId, file) {
     const token = getAccessToken();
     if (!token) {

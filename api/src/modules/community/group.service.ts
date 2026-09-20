@@ -624,11 +624,30 @@ export class GroupService {
 
   async requireActiveMembership(groupId: string, userId: string): Promise<{ id: string; role: GroupRole }> {
     const membership = await this.getMembership(groupId, userId);
+    // 'muted' is checked, and reported, before the general active-only
+    // check below -- a muted member IS still a member (they can read),
+    // just not one currently allowed to post; folding it into the
+    // generic "not an active member" branch would report the wrong
+    // reason and imply re-joining rather than waiting out the mute.
+    if (membership?.status === 'muted') {
+      throw new ForbiddenException('You are muted in this group and cannot post right now.');
+    }
     if (!membership || membership.status !== 'active') {
       throw new ForbiddenException('You are not an active member of this group.');
     }
-    if (membership.status === ('muted' as GroupMemberStatus)) {
-      throw new ForbiddenException('You are muted in this group and cannot post right now.');
+    return membership;
+  }
+
+  /**
+   * Like requireActiveMembership, but for reads (chat history, the
+   * post feed) rather than writes: a muted member can still read
+   * everything, only posting is restricted, so this accepts 'active'
+   * OR 'muted' and never throws the muted-specific error.
+   */
+  async requireActiveMembershipReadOnly(groupId: string, userId: string): Promise<{ id: string; role: GroupRole }> {
+    const membership = await this.getMembership(groupId, userId);
+    if (!membership || !['active', 'muted'].includes(membership.status)) {
+      throw new ForbiddenException('You are not a member of this group.');
     }
     return membership;
   }
