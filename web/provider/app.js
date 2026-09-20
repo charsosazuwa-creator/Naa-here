@@ -880,6 +880,7 @@ views.bookings = async () => {
         <tbody>${rows}</tbody>
       </table>
     </div>
+    <div id="dispute-panel"></div>
   `;
 
   const after = () => {
@@ -888,11 +889,21 @@ views.bookings = async () => {
         runAction(btn, () => Api.transitionBooking(state.tenantId, btn.dataset.id, { status: btn.dataset.status })),
       ),
     );
+    // US-056: a proper reason/details/attachment form, replacing the
+    // original window.prompt()-based quick raise.
     document.querySelectorAll('[data-action="dispute"]').forEach((btn) =>
-      btn.addEventListener('click', async () => {
-        const reason = window.prompt('Reason for the dispute:');
-        if (!reason) return;
-        await runAction(btn, () => Api.raiseDispute(state.tenantId, btn.dataset.id, { reason }));
+      btn.addEventListener('click', () => {
+        const bookingId = btn.dataset.id;
+        const panel = document.getElementById('dispute-panel');
+        panel.innerHTML = `<div class="panel"><h2>Raise a dispute</h2>${DisputeUI.disputeFormHtml()}</div>`;
+        DisputeUI.wireDisputeForm(panel, Api, state.tenantId, bookingId, (dispute) => {
+          panel.innerHTML = `
+            <div class="panel">
+              <p>Case <strong>${DisputeUI.escapeHtml(dispute.caseNumber)}</strong> raised — see the
+              <a href="#/t/${state.tenantId}/disputes">Disputes</a> tab for status.</p>
+            </div>`;
+        });
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }),
     );
   };
@@ -1000,30 +1011,69 @@ views.disputes = async () => {
         .map(
           (d) => `
       <tr>
-        <td>${escapeHtml(d.reason)}</td>
+        <td><code>${escapeHtml(d.caseNumber)}</code></td>
+        <td>${DisputeUI.reasonLabel(d.reason)}</td>
         <td>${badge(d.status)}</td>
-        <td>${escapeHtml(d.resolutionNotes ?? '—')}</td>
+        <td>${DisputeUI.formatDateTime(d.createdAt)}</td>
+        <td><button class="small" data-action="expand" data-id="${d.id}">Details</button></td>
+      </tr>
+      <tr class="submission-detail" data-detail-for="${d.id}" hidden>
+        <td colspan="5">
+          ${DisputeUI.disputeDetailHtml(
+            d,
+            d.status === 'open'
+              ? `
+            <div class="field"><label>Add supporting evidence</label><input class="add-evidence-file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" /></div>
+            <button class="small" data-action="add-evidence" data-id="${d.id}">Upload</button>`
+              : '',
+          )}
+        </td>
       </tr>`,
         )
         .join('')
-    : '<tr class="empty-row"><td colspan="3">No disputes on this business.</td></tr>';
+    : '<tr class="empty-row"><td colspan="5">No disputes on this business.</td></tr>';
 
   const body = `
     <h1 class="page-title">Disputes</h1>
     <p style="color:var(--color-text-muted);font-size:0.85rem">
       Resolving a dispute is a platform-administrator action (separation of
       duties — see the design's phase-5 rules), not something this portal
-      exposes. This view is read-only plus raising a new one from the
-      Bookings tab.
+      exposes. This view is read-only, plus raising a new one from the
+      Bookings tab and adding evidence to one that's still open.
     </p>
     <div class="panel">
       <table class="data-table">
-        <thead><tr><th>Reason</th><th>Status</th><th>Notes</th></tr></thead>
+        <thead><tr><th>Case</th><th>Reason</th><th>Status</th><th>Raised</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
   `;
-  return { title: 'Disputes', body };
+
+  const after = () => {
+    document.querySelectorAll('[data-action="expand"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const detail = document.querySelector(`[data-detail-for="${btn.dataset.id}"]`);
+        detail.hidden = !detail.hidden;
+      });
+    });
+    document.querySelectorAll('[data-action="add-evidence"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const detail = document.querySelector(`[data-detail-for="${btn.dataset.id}"]`);
+        const file = detail.querySelector('.add-evidence-file').files[0];
+        if (!file) return;
+        btn.disabled = true;
+        try {
+          await Api.uploadDisputeAttachment(state.tenantId, btn.dataset.id, file);
+          renderRoute();
+        } catch (err) {
+          window.alert(err.message);
+          btn.disabled = false;
+        }
+      });
+    });
+  };
+
+  return { title: 'Disputes', body, after };
 };
 
 // ---------------------------------------------------------------------

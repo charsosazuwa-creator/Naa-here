@@ -230,3 +230,22 @@ button.small:disabled { opacity: 0.5; cursor: not-allowed; }
 .ai-search-result {
   margin-top: var(--space-3);
 }
+
+/* US-056 (disputes): evidence attachment list in dispute detail rows. */
+.dispute-attachment-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-2) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.dispute-attachment-list li a {
+  display: inline-block;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  text-decoration: none;
+  color: var(--color-primary);
+}

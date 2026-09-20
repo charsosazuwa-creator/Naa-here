@@ -120,6 +120,39 @@ const Api = {
   // both public (no sign-in required to browse the marketplace).
   searchGoogle: (query) => apiRequest(`/discover/google${query ? `?${query}` : ''}`),
   aiSearch: (payload) => apiRequest('/discover/ai-search', { method: 'POST', body: payload }),
+
+  // disputes (User Story US-056): a customer is just a signed-in user,
+  // same as bookings/job-requests, so raising and viewing use the same
+  // routes the provider portal calls, plus /disputes/mine for the
+  // cross-tenant "my own cases" list.
+  raiseDispute: (tenantId, bookingId, payload) =>
+    apiRequest(`/tenants/${tenantId}/bookings/${bookingId}/disputes`, { method: 'POST', body: payload, auth: true }),
+  myDisputes: () => apiRequest('/disputes/mine', { auth: true }),
+  deleteDisputeAttachment: (tenantId, disputeId, attachmentId) =>
+    apiRequest(`/tenants/${tenantId}/disputes/${disputeId}/attachments/${attachmentId}`, { method: 'DELETE', auth: true }),
+  async uploadDisputeAttachment(tenantId, disputeId, file) {
+    const token = getAccessToken();
+    if (!token) {
+      window.location.href = `login.html?next=${encodeURIComponent(window.location.hash)}`;
+      throw new Error('Not signed in.');
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE_URL}/tenants/${tenantId}/disputes/${disputeId}/attachments`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) {
+        clearSession();
+        window.location.href = `login.html?next=${encodeURIComponent(window.location.hash)}`;
+      }
+      throw new Error(data?.error?.message || `Request failed (${res.status}).`);
+    }
+    return data;
+  },
   listMyListings: () => apiRequest('/listings/mine', { auth: true }),
   createListing: (payload) => apiRequest('/listings', { method: 'POST', body: payload, auth: true }),
   updateListing: (listingId, payload) => apiRequest(`/listings/${listingId}`, { method: 'PATCH', body: payload, auth: true }),

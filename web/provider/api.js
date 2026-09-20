@@ -140,10 +140,35 @@ const Api = {
   declineJobRequest: (tenantId, jobRequestId, payload) =>
     apiRequest(`/tenants/${tenantId}/job-requests/${jobRequestId}/decline`, { method: 'POST', body: payload }),
 
-  // disputes
+  // disputes (US-056)
   listDisputes: (tenantId) => apiRequest(`/tenants/${tenantId}/disputes`),
   raiseDispute: (tenantId, bookingId, payload) =>
     apiRequest(`/tenants/${tenantId}/bookings/${bookingId}/disputes`, { method: 'POST', body: payload }),
+  deleteDisputeAttachment: (tenantId, disputeId, attachmentId) =>
+    apiRequest(`/tenants/${tenantId}/disputes/${disputeId}/attachments/${attachmentId}`, { method: 'DELETE' }),
+  async uploadDisputeAttachment(tenantId, disputeId, file) {
+    const token = getAccessToken();
+    if (!token) {
+      window.location.href = 'login.html';
+      throw new Error('Not signed in.');
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE_URL}/tenants/${tenantId}/disputes/${disputeId}/attachments`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) {
+        clearSession();
+        window.location.href = 'login.html';
+      }
+      throw new Error(data?.error?.message || `Request failed (${res.status}).`);
+    }
+    return data;
+  },
 
   // finance — payouts only; refunds and reconciliation are platform-
   // (admin/finance-administrator) actions, out of scope for a

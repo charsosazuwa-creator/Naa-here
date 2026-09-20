@@ -245,10 +245,120 @@
     });
   }
 
+  // US-056: platform dispute queue. Each row carries its own tenantId
+  // (a dispute's tenant, not the admin's), used to call the existing
+  // tenant-scoped resolve route — same "platform queue, tenant-scoped
+  // decide" split as verification and listing moderation above.
+  async function renderDisputesQueue() {
+    view.innerHTML = `<p class="empty-state">Loading…</p>`;
+    let disputes;
+    try {
+      disputes = await Api.listDisputes();
+    } catch (err) {
+      if (err.status === 403) {
+        renderNotAuthorized();
+        return;
+      }
+      renderError(err);
+      return;
+    }
+
+    if (disputes.length === 0) {
+      view.innerHTML = `
+        <div class="panel">
+          <h2>Disputes</h2>
+          <p class="empty-state">No disputes have been raised yet.</p>
+        </div>`;
+      return;
+    }
+
+    const rows = disputes
+      .map(
+        (d) => `
+      <tr class="submission-row" data-id="${escapeHtml(d.id)}">
+        <td><code>${escapeHtml(d.caseNumber)}</code></td>
+        <td>${escapeHtml(d.tenantName)}</td>
+        <td>${escapeHtml(d.raisedByName)}</td>
+        <td>${DisputeUI.reasonLabel(d.reason)}</td>
+        <td>${DisputeUI.badge(d.status)}</td>
+        <td>${DisputeUI.formatDateTime(d.createdAt)}</td>
+        <td>
+          <button class="btn-plain" data-action="review" data-id="${escapeHtml(d.id)}">Review</button>
+        </td>
+      </tr>
+      <tr class="submission-detail" data-detail-for="${escapeHtml(d.id)}" hidden>
+        <td colspan="7">
+          ${DisputeUI.disputeDetailHtml(
+            d,
+            d.status === 'open'
+              ? `
+            <div class="field">
+              <label>Resolution</label>
+              <select class="resolution-select tenant-select">
+                <option value="resolved_customer">In the customer's favor (refunds the held amount)</option>
+                <option value="resolved_provider">In the provider's favor</option>
+                <option value="dismissed">Dismiss</option>
+              </select>
+            </div>
+            <textarea class="review-note" placeholder="Note (sent to both parties)"></textarea>
+            <div class="actions-row">
+              <button class="primary" data-action="resolve" data-id="${escapeHtml(d.id)}" data-tenant="${escapeHtml(d.tenantId)}">Resolve</button>
+            </div>`
+              : '',
+          )}
+        </td>
+      </tr>`,
+      )
+      .join('');
+
+    view.innerHTML = `
+      <div class="panel">
+        <h2>Disputes</h2>
+        <table class="data-table">
+          <thead>
+            <tr><th>Case</th><th>Business</th><th>Raised by</th><th>Reason</th><th>Status</th><th>Raised</th><th></th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+
+    view.querySelectorAll('[data-action="review"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const detail = view.querySelector(`[data-detail-for="${CSS.escape(id)}"]`);
+        detail.hidden = !detail.hidden;
+      });
+    });
+
+    view.querySelectorAll('[data-action="resolve"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const { id, tenant } = btn.dataset;
+        const detail = view.querySelector(`[data-detail-for="${CSS.escape(id)}"]`);
+        const resolution = detail.querySelector('.resolution-select').value;
+        const notes = detail.querySelector('.review-note').value.trim();
+
+        if (!window.confirm('Resolve this dispute? This cannot be undone.')) {
+          return;
+        }
+
+        btn.disabled = true;
+        try {
+          await Api.resolveDispute(tenant, id, resolution, notes || undefined);
+          await renderDisputesQueue();
+        } catch (err) {
+          window.alert(err.message);
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
   function switchTab(tab) {
     document.querySelectorAll('.admin-tabs button').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
     if (tab === 'listings') {
       renderPendingListings();
+    } else if (tab === 'disputes') {
+      renderDisputesQueue();
     } else {
       renderPending();
     }

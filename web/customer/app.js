@@ -365,12 +365,17 @@ views.bookings = async () => {
                     const svc = state.serviceCache[b.serviceId];
                     const canCancel = !['cancelled', 'completed', 'no_show'].includes(b.status);
                     return `
-              <tr data-booking-id="${b.id}">
+              <tr data-booking-id="${b.id}" data-tenant-id="${svc?.tenantId ?? ''}">
                 <td>${svc ? `<a href="#/service/${b.serviceId}">${escapeHtml(svc.name)}</a>` : escapeHtml(b.serviceId)}</td>
                 <td>${escapeHtml(svc?.tenantName ?? '—')}</td>
                 <td>${formatDateTime(b.startsAt)} – ${formatDateTime(b.endsAt)}</td>
                 <td>${badge(b.status)}</td>
-                <td>${canCancel ? '<button class="small danger" data-action="cancel">Cancel</button>' : ''}</td>
+                <td>
+                  <div class="actions-row">
+                    ${canCancel ? '<button class="small danger" data-action="cancel">Cancel</button>' : ''}
+                    <button class="small" data-action="dispute">Report a problem</button>
+                  </div>
+                </td>
               </tr>`;
                   })
                   .join('')
@@ -378,6 +383,7 @@ views.bookings = async () => {
         </tbody>
       </table>
     </div>
+    <div id="dispute-panel"></div>
   `;
 
   const after = () => {
@@ -390,9 +396,87 @@ views.bookings = async () => {
         }),
       );
     });
+
+    // US-056: report a problem with this booking (raise a dispute).
+    document.querySelectorAll('[data-action="dispute"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const row = btn.closest('tr');
+        const { bookingId, tenantId } = row.dataset;
+        const panel = document.getElementById('dispute-panel');
+        panel.innerHTML = `<div class="panel"><h2>Report a problem</h2>${DisputeUI.disputeFormHtml()}</div>`;
+        DisputeUI.wireDisputeForm(panel, Api, tenantId, bookingId, (dispute) => {
+          panel.innerHTML = `
+            <div class="panel">
+              <p>Your report was submitted — case reference <strong>${DisputeUI.escapeHtml(dispute.caseNumber)}</strong>.
+              You can track its status under <a href="#/my-disputes">My Disputes</a>.</p>
+            </div>`;
+        });
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    });
   };
 
   return { title: 'My bookings', body, after };
+};
+
+// ---------------------------------------------------------------------
+// My Disputes (US-056) — any signed-in user's own cases, as raiser or
+// as the customer on a booking the other party disputed.
+// ---------------------------------------------------------------------
+views['my-disputes'] = async () => {
+  if (!isSignedIn()) {
+    window.location.href = `login.html?next=${encodeURIComponent('#/my-disputes')}`;
+    return { title: 'My Disputes', body: '' };
+  }
+
+  let disputes;
+  try {
+    disputes = await Api.myDisputes();
+  } catch (err) {
+    return { title: 'My Disputes', body: `<div class="alert error" role="alert">${escapeHtml(err.message)}</div>` };
+  }
+
+  const rows = disputes.length
+    ? disputes
+        .map(
+          (d) => `
+      <tr>
+        <td><code>${escapeHtml(d.caseNumber)}</code></td>
+        <td>${DisputeUI.reasonLabel(d.reason)}</td>
+        <td>${DisputeUI.badge(d.status)}</td>
+        <td>${DisputeUI.formatDateTime(d.createdAt)}</td>
+        <td><button class="small" data-action="expand" data-id="${d.id}">Details</button></td>
+      </tr>
+      <tr class="submission-detail" data-detail-for="${d.id}" hidden>
+        <td colspan="5">${DisputeUI.disputeDetailHtml(d)}</td>
+      </tr>`,
+        )
+        .join('')
+    : '<tr class="empty-row"><td colspan="5">No cases yet.</td></tr>';
+
+  const body = `
+    <h1 class="page-title">My Disputes</h1>
+    <p style="color:var(--color-text-muted);font-size:0.85rem">
+      Cases you've reported, or that were reported about one of your bookings.
+    </p>
+    <div class="panel">
+      <table class="data-table">
+        <thead><tr><th>Case</th><th>Reason</th><th>Status</th><th>Raised</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+
+  const after = () => {
+    document.querySelectorAll('[data-action="expand"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const detail = document.querySelector(`[data-detail-for="${btn.dataset.id}"]`);
+        detail.hidden = !detail.hidden;
+      });
+    });
+  };
+
+  return { title: 'My Disputes', body, after };
 };
 
 // ---------------------------------------------------------------------

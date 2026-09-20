@@ -113,4 +113,15 @@ const Api = {
       auth: true,
     });
   },
+  // dispute queue (User Story US-056) — see dispute-admin.controller.ts.
+  listDisputes() {
+    return apiRequest('/admin/disputes', { auth: true });
+  },
+  resolveDispute(tenantId, disputeId, resolution, notes) {
+    return apiRequest(`/tenants/${tenantId}/disputes/${disputeId}/resolve`, {
+      method: 'POST',
+      body: { resolution, notes },
+      auth: true,
+    });
+  },
 };
