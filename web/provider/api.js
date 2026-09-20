@@ -89,6 +89,7 @@ const Api = {
   // which businesses the signed-in user belongs to.
   myTenants: () => apiRequest('/tenants/mine'),
   createTenant: (payload) => apiRequest('/tenants', { method: 'POST', body: payload }),
+  listBusinessCategories: () => apiRequest('/business-categories'),
   getTenant: (tenantId) => apiRequest(`/tenants/${tenantId}`),
 
   // tenancy — locations and staff (Milestone 2 provider setup).
@@ -115,6 +116,7 @@ const Api = {
   // catalogue
   listServices: (tenantId) => apiRequest(`/tenants/${tenantId}/services?all=true`),
   createService: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/services`, { method: 'POST', body: payload }),
+  listServiceCategories: () => apiRequest('/service-categories'),
   setServiceStatus: (tenantId, serviceId, status) =>
     apiRequest(`/tenants/${tenantId}/services/${serviceId}/status`, { method: 'PATCH', body: { status } }),
 

@@ -8,6 +8,19 @@
     alertBox.hidden = false;
   }
 
+  // Business categories are an open, shared, growing list rather than
+  // a fixed few options -- this datalist lets someone pick an
+  // existing one or just type a new one. Unauthenticated at this
+  // point (no account yet), so the list endpoint has to be public.
+  AuthApi.listBusinessCategories()
+    .then((categories) => {
+      const datalist = document.getElementById('businessCategoryOptions');
+      datalist.innerHTML = categories.map((c) => `<option value="${c.name}"></option>`).join('');
+    })
+    .catch(() => {
+      // Non-fatal: the field still works as a plain free-text input.
+    });
+
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     alertBox.hidden = true;
@@ -18,15 +31,16 @@
     const password = form.password.value;
     const confirmPassword = form.confirmPassword.value;
     const businessName = form.businessName.value.trim();
-    const businessCategory = form.businessCategory.value;
+    const businessType = form.businessType.value;
+    const businessCategory = form.businessCategory.value.trim();
     const businessCountry = form.businessCountry.value;
 
     if (!email && !phone) {
       showError('Enter an email or a phone number.');
       return;
     }
-    if (!businessName || !businessCategory || !businessCountry) {
-      showError('Business name, category and country are required.');
+    if (!businessName || !businessType || !businessCategory || !businessCountry) {
+      showError('Business name, type, category and country are required.');
       return;
     }
     if (!form.terms.checked) {
@@ -56,7 +70,7 @@
       sessionStorage.setItem('pendingSignupType', 'provider');
       sessionStorage.setItem(
         'pendingBusiness',
-        JSON.stringify({ name: businessName, category: businessCategory, countryCode: businessCountry }),
+        JSON.stringify({ name: businessName, businessType, categoryName: businessCategory, countryCode: businessCountry }),
       );
 
       const purpose = email ? 'email_verify' : 'phone_verify';
@@ -72,11 +86,12 @@
   renderOAuthButtons('oauth-buttons', () => {
     alertBox.hidden = true;
     const businessName = form.businessName.value.trim();
-    const businessCategory = form.businessCategory.value;
+    const businessType = form.businessType.value;
+    const businessCategory = form.businessCategory.value.trim();
     const businessCountry = form.businessCountry.value;
 
-    if (!businessName || !businessCategory || !businessCountry) {
-      showError('Business name, category and country are required.');
+    if (!businessName || !businessType || !businessCategory || !businessCountry) {
+      showError('Business name, type, category and country are required.');
       return null;
     }
     if (!form.terms.checked) {
@@ -85,6 +100,6 @@
     }
     return {
       role: 'provider',
-      business: { name: businessName, category: businessCategory, countryCode: businessCountry },
+      business: { name: businessName, businessType, categoryName: businessCategory, countryCode: businessCountry },
     };
   });

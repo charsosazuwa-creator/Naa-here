@@ -43,13 +43,19 @@
       <input id="businessName" name="businessName" type="text" required />
     </div>
     <div class="field">
-      <label for="businessCategory">Business type / category</label>
-      <select id="businessCategory" name="businessCategory" required>
-        <option value="" disabled selected>Select a category</option>
-        <option value="barber_salon">Barber and salon</option>
-        <option value="accommodation">Accommodation</option>
-        <option value="artisan">Artisan and on-demand jobs</option>
+      <label for="businessType">Business type</label>
+      <select id="businessType" name="businessType" required>
+        <option value="" disabled selected>Select a business type</option>
+        <option value="provider">Service provider / business owner</option>
+        <option value="artisan">Artisan / on-demand worker</option>
+        <option value="host">Accommodation host</option>
       </select>
+    </div>
+    <div class="field">
+      <label for="businessCategory">Category</label>
+      <input id="businessCategory" name="businessCategory" type="text" list="businessCategoryOptions" required placeholder="e.g. Barber &amp; Salon" />
+      <datalist id="businessCategoryOptions"></datalist>
+      <div class="hint">Pick an existing category or type a new one — it'll be added for everyone to use.</div>
     </div>
     <div class="field">
       <label for="businessCountry">Business location — country</label>

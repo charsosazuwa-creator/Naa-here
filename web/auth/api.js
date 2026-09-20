@@ -32,4 +32,5 @@ const AuthApi = {
   login: (payload) => apiRequest('/auth/login', { method: 'POST', body: payload }),
   forgotPassword: (payload) => apiRequest('/auth/password/forgot', { method: 'POST', body: payload }),
   resetPassword: (payload) => apiRequest('/auth/password/reset', { method: 'POST', body: payload }),
+  listBusinessCategories: () => apiRequest('/business-categories'),
 };

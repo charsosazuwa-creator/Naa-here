@@ -1,9 +1,18 @@
-import { IsIn, IsInt, IsOptional, IsPositive, IsString, IsUUID, Min, MinLength } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsPositive, IsString, IsUUID, Min, MinLength, ValidateIf } from 'class-validator';
 
 export class CreateServiceDto {
+  // Pick an existing service_category by id, OR type a new/existing
+  // one by name -- exactly one of the two is required. See
+  // ServiceCatalogueService.resolveCategory().
+  @ValidateIf((o) => !o.categoryName)
   @IsInt()
   @IsPositive()
-  categoryId!: number;
+  categoryId?: number;
+
+  @ValidateIf((o) => !o.categoryId)
+  @IsString()
+  @MinLength(1)
+  categoryName?: string;
 
   @IsOptional()
   @IsUUID()

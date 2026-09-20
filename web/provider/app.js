@@ -42,13 +42,6 @@ const NAV_ITEMS = [
   { key: 'payouts', label: 'Payouts' },
 ];
 
-/** Fixed service categories (db/migrations/002_provider_crm.sql seeds exactly these three; there's no list endpoint for them yet). */
-const SERVICE_CATEGORIES = [
-  { id: 1, name: 'Barber and salon appointments' },
-  { id: 2, name: 'Accommodation' },
-  { id: 3, name: 'Artisan and on-demand jobs' },
-];
-
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function escapeHtml(value) {
@@ -80,6 +73,12 @@ const views = {};
 // Tenants (no tenant selected yet): pick or create a business.
 // ---------------------------------------------------------------------
 views.tenants = async () => {
+  // Business categories are an open, shared, growing list (see
+  // BusinessCategoryService) rather than a fixed 3-option dropdown --
+  // this datalist powers "pick an existing one or just type a new
+  // one" on the category field below.
+  const categories = await Api.listBusinessCategories().catch(() => []);
+
   const body = `
     <h1 class="page-title">Your businesses</h1>
     <div class="panel">
@@ -106,12 +105,22 @@ views.tenants = async () => {
       <form id="create-tenant-form" novalidate>
         <div class="field"><label for="ct-name">Business name</label><input id="ct-name" required /></div>
         <div class="field">
-          <label for="ct-category">Category</label>
-          <select id="ct-category" class="tenant-select">
-            <option value="barber_salon">Barber / salon</option>
-            <option value="accommodation">Accommodation</option>
-            <option value="artisan">Artisan</option>
+          <label for="ct-business-type">Business type</label>
+          <select id="ct-business-type" class="tenant-select">
+            <option value="provider">Service provider / business owner</option>
+            <option value="artisan">Artisan / on-demand worker</option>
+            <option value="host">Accommodation host</option>
           </select>
+        </div>
+        <div class="field">
+          <label for="ct-category">Category</label>
+          <input id="ct-category" list="ct-category-options" placeholder="e.g. Barber &amp; Salon" required />
+          <datalist id="ct-category-options">
+            ${categories.map((c) => `<option value="${escapeHtml(c.name)}"></option>`).join('')}
+          </datalist>
+          <p style="color:var(--color-text-muted);font-size:0.8rem;margin:4px 0 0">
+            Pick an existing category or type a new one — it'll be added for everyone to use.
+          </p>
         </div>
         <div class="field">
           <label for="ct-country">Country</label>
@@ -142,7 +151,8 @@ views.tenants = async () => {
       try {
         const tenant = await Api.createTenant({
           name: document.getElementById('ct-name').value.trim(),
-          category: document.getElementById('ct-category').value,
+          businessType: document.getElementById('ct-business-type').value,
+          categoryName: document.getElementById('ct-category').value.trim(),
           countryCode: document.getElementById('ct-country').value,
         });
         await reloadTenants();
@@ -167,6 +177,7 @@ views.overview = async () => {
     <div class="panel">
       <h2>Business details</h2>
       <p><strong>Category:</strong> ${escapeHtml(tenant.category)}</p>
+      <p><strong>Business type:</strong> ${escapeHtml(tenant.businessType)}</p>
       <p><strong>Country:</strong> ${escapeHtml(tenant.countryCode)}</p>
       <p><strong>Verification status:</strong> ${badge(tenant.verificationStatus)}</p>
       <p><strong>Listing status:</strong> ${badge(tenant.status)}</p>
@@ -407,7 +418,11 @@ views.staff = async () => {
 // Services
 // ---------------------------------------------------------------------
 views.services = async () => {
-  const [services, locations] = await Promise.all([Api.listServices(state.tenantId), Api.listLocations(state.tenantId)]);
+  const [services, locations, serviceCategories] = await Promise.all([
+    Api.listServices(state.tenantId),
+    Api.listLocations(state.tenantId),
+    Api.listServiceCategories().catch(() => []),
+  ]);
 
   const rows = services.length
     ? services
@@ -415,6 +430,7 @@ views.services = async () => {
           (s) => `
       <tr>
         <td>${escapeHtml(s.name)}</td>
+        <td>${escapeHtml(s.categoryName)}</td>
         <td>${formatMoney(s.priceMinorUnits, s.currencyCode)}</td>
         <td>${badge(s.status)}</td>
         <td>
@@ -426,13 +442,13 @@ views.services = async () => {
       </tr>`,
         )
         .join('')
-    : '<tr class="empty-row"><td colspan="4">No services yet.</td></tr>';
+    : '<tr class="empty-row"><td colspan="5">No services yet.</td></tr>';
 
   const body = `
     <h1 class="page-title">Services</h1>
     <div class="panel">
       <table class="data-table">
-        <thead><tr><th>Name</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Name</th><th>Category</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -443,9 +459,13 @@ views.services = async () => {
         <div class="field"><label for="s-name">Name</label><input id="s-name" required /></div>
         <div class="field">
           <label for="s-category">Category</label>
-          <select id="s-category" class="tenant-select">
-            ${SERVICE_CATEGORIES.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
-          </select>
+          <input id="s-category" list="s-category-options" placeholder="e.g. Barber and salon appointments" required />
+          <datalist id="s-category-options">
+            ${serviceCategories.map((c) => `<option value="${escapeHtml(c.name)}"></option>`).join('')}
+          </datalist>
+          <p style="color:var(--color-text-muted);font-size:0.8rem;margin:4px 0 0">
+            Pick an existing category or type a new one — it'll be added for everyone to use.
+          </p>
         </div>
         <div class="field">
           <label for="s-location">Location</label>
@@ -484,7 +504,7 @@ views.services = async () => {
         const locationId = document.getElementById('s-location').value;
         await Api.createService(state.tenantId, {
           name: document.getElementById('s-name').value.trim(),
-          categoryId: Number(document.getElementById('s-category').value),
+          categoryName: document.getElementById('s-category').value.trim(),
           locationId: locationId || undefined,
           priceMinorUnits: Number(document.getElementById('s-price').value),
           currencyCode: document.getElementById('s-currency').value,
@@ -1709,7 +1729,10 @@ async function renderGroupDetail(groupId) {
           event.preventDefault();
           const input = document.getElementById('gc-input');
           const text = input.value.trim();
-          if (!text) return;
+          if (!text || chatForm.dataset.sending === 'true') return;
+          chatForm.dataset.sending = 'true';
+          const submitBtn = chatForm.querySelector('button[type="submit"]');
+          if (submitBtn) submitBtn.disabled = true;
           input.value = '';
           const container = document.getElementById('group-chat-messages');
           try {
@@ -1718,6 +1741,9 @@ async function renderGroupDetail(groupId) {
           } catch (err) {
             window.alert(err.message);
             input.value = text;
+          } finally {
+            chatForm.dataset.sending = 'false';
+            if (submitBtn) submitBtn.disabled = false;
           }
         });
       }
