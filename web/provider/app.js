@@ -37,6 +37,7 @@ const NAV_ITEMS = [
   // here since a Service Provider managing their business is exactly
   // who'd want to post a product/service/invention too.
   { key: 'listings', label: 'My Listings' },
+  { key: 'groups', label: 'Groups' },
   { key: 'disputes', label: 'Disputes' },
   { key: 'payouts', label: 'Payouts' },
 ];
@@ -1217,6 +1218,652 @@ views.payouts = async () => {
   };
 
   return { title: 'Payouts', body, after };
+};
+
+// ---------------------------------------------------------------------
+// Community groups (User Story 5): open to verified Service Providers
+// / Business Owners. Not tenant-scoped (see group.service.ts's header
+// comment) but shown as a tab within the tenant shell, same as "My
+// Listings" -- the tenant is just where you're browsing from, not
+// what owns the group.
+// ---------------------------------------------------------------------
+
+function renderGroupRows(groups) {
+  return groups.length
+    ? groups
+        .map(
+          (g) => `
+      <tr>
+        <td><a href="#/t/${state.tenantId}/groups/${g.id}">${escapeHtml(g.name)}</a></td>
+        <td>${escapeHtml(g.industryCategory ?? '—')}</td>
+        <td>${escapeHtml(g.locationText ?? '—')}</td>
+        <td>${badge(g.visibility)} ${badge(g.membershipType)}</td>
+        <td>${g.memberCount}</td>
+        <td>${g.myStatus ? badge(g.myStatus) : '—'}</td>
+      </tr>`,
+        )
+        .join('')
+    : '<tr class="empty-row"><td colspan="6">No groups match yet — be the first to create one.</td></tr>';
+}
+
+async function renderGroupList() {
+  const [groups, invitations] = await Promise.all([Api.discoverGroups(''), Api.myGroupInvitations().catch(() => [])]);
+
+  const invitationRows = invitations.length
+    ? invitations
+        .map(
+          (inv) => `
+      <tr>
+        <td>${escapeHtml(inv.groupName)}</td>
+        <td>
+          <div class="actions-row">
+            <button class="small primary" data-action="group-invite-accept" data-group="${inv.groupId}">Accept</button>
+            <button class="small danger" data-action="group-invite-decline" data-group="${inv.groupId}">Decline</button>
+          </div>
+        </td>
+      </tr>`,
+        )
+        .join('')
+    : '';
+
+  const body = `
+    <h1 class="page-title">Community Groups</h1>
+    <p style="color:var(--color-text-muted);font-size:0.85rem">
+      Open to verified Service Providers and Business Owners — connect with other businesses, share knowledge,
+      and post about your services, products, and opportunities.
+    </p>
+
+    ${
+      invitations.length
+        ? `
+    <div class="panel">
+      <h2>Your invitations</h2>
+      <table class="data-table"><tbody>${invitationRows}</tbody></table>
+    </div>`
+        : ''
+    }
+
+    <div class="panel">
+      <h2>Create a group</h2>
+      <div id="group-create-alert" class="alert error" role="alert" hidden></div>
+      <form id="group-create-form" novalidate class="inline-form">
+        <div class="field"><label for="g-name">Name</label><input id="g-name" required /></div>
+        <div class="field"><label for="g-category">Industry / category</label><input id="g-category" /></div>
+        <div class="field"><label for="g-location">Location / service area</label><input id="g-location" /></div>
+        <div class="field">
+          <label for="g-visibility">Visibility</label>
+          <select id="g-visibility"><option value="public">Public</option><option value="private">Private</option><option value="hidden">Hidden</option></select>
+        </div>
+        <div class="field">
+          <label for="g-membership-type">Joining</label>
+          <select id="g-membership-type"><option value="open">Open</option><option value="request">Request to join</option><option value="invite_only">Invite only</option></select>
+        </div>
+        <div class="field" style="flex:1;min-width:240px"><label for="g-description">Description</label><input id="g-description" /></div>
+        <button class="primary" type="submit">Create group</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h2>Discover groups</h2>
+      <form id="group-search-form" class="inline-form" novalidate>
+        <div class="field"><label for="g-q">Search</label><input id="g-q" placeholder="Name or description" /></div>
+        <div class="field"><label for="g-search-category">Category</label><input id="g-search-category" /></div>
+        <div class="field"><label for="g-search-location">Location</label><input id="g-search-location" /></div>
+        <button class="btn-plain" type="submit">Search</button>
+      </form>
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Category</th><th>Location</th><th>Type</th><th>Members</th><th>You</th></tr></thead>
+        <tbody id="group-rows">${renderGroupRows(groups)}</tbody>
+      </table>
+    </div>
+  `;
+
+  const after = () => {
+    document.getElementById('group-create-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const alertBox = document.getElementById('group-create-alert');
+      alertBox.hidden = true;
+      try {
+        const group = await Api.createGroup({
+          name: document.getElementById('g-name').value.trim(),
+          industryCategory: document.getElementById('g-category').value.trim() || undefined,
+          locationText: document.getElementById('g-location').value.trim() || undefined,
+          visibility: document.getElementById('g-visibility').value,
+          membershipType: document.getElementById('g-membership-type').value,
+          description: document.getElementById('g-description').value.trim() || undefined,
+        });
+        window.location.hash = `#/t/${state.tenantId}/groups/${group.id}`;
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.hidden = false;
+      }
+    });
+
+    document.getElementById('group-search-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const params = new URLSearchParams();
+      const q = document.getElementById('g-q').value.trim();
+      const category = document.getElementById('g-search-category').value.trim();
+      const location = document.getElementById('g-search-location').value.trim();
+      if (q) params.set('q', q);
+      if (category) params.set('category', category);
+      if (location) params.set('location', location);
+      try {
+        const filtered = await Api.discoverGroups(params.toString());
+        document.getElementById('group-rows').innerHTML = renderGroupRows(filtered);
+      } catch (err) {
+        window.alert(err.message);
+      }
+    });
+
+    document.querySelectorAll('[data-action="group-invite-accept"]').forEach((btn) =>
+      btn.addEventListener('click', () => runAction(btn, () => Api.acceptGroupInvitation(btn.dataset.group))),
+    );
+    document.querySelectorAll('[data-action="group-invite-decline"]').forEach((btn) =>
+      btn.addEventListener('click', () => runAction(btn, () => Api.declineGroupInvitation(btn.dataset.group))),
+    );
+  };
+
+  return { title: 'Community Groups', body, after };
+}
+
+function renderPostCard(p, canModerate) {
+  const attachmentsHtml = p.attachments.length
+    ? `<div class="post-attachments" style="margin:8px 0">${p.attachments
+        .map((a) =>
+          a.kind === 'image'
+            ? `<img src="${a.url}" alt="" style="max-width:220px;max-height:220px;margin:0 6px 6px 0;border-radius:6px" />`
+            : `<a href="${a.url}" target="_blank" rel="noopener" style="display:inline-block;margin-right:10px">${escapeHtml(a.kind)} attachment</a>`,
+        )
+        .join('')}</div>`
+    : '';
+
+  return `
+    <div class="panel post-card" data-post-id="${p.id}" style="margin-bottom:12px">
+      <p style="font-size:0.78rem;color:var(--color-text-muted);margin:0 0 6px">
+        <strong>${escapeHtml(p.authorName)}</strong> · ${badge(p.topic)} · ${formatDate(p.createdAt)}
+      </p>
+      ${p.ipAckRequired ? '<p class="alert" style="background:rgba(217,119,6,0.1);color:#92400e;font-size:0.78rem;padding:6px 10px;border-radius:6px">IP disclosure acknowledged by the author for this post.</p>' : ''}
+      <p style="white-space:pre-wrap">${escapeHtml(p.body)}</p>
+      ${attachmentsHtml}
+      <div class="actions-row">
+        <button class="small ${p.myReaction ? 'primary' : ''}" data-action="post-react" data-post="${p.id}" data-reacted="${p.myReaction}">${p.myReaction ? 'Liked' : 'Like'} (${p.reactionCount})</button>
+        <button class="small" data-action="post-comments-toggle" data-post="${p.id}">Comments (${p.commentCount})</button>
+        <button class="small" data-action="post-share" data-post="${p.id}">Share (${p.shareCount})</button>
+        <button class="small" data-action="post-report" data-post="${p.id}">Report</button>
+        ${p.authorUserId === state.user?.id ? `<button class="small danger" data-action="post-delete" data-post="${p.id}">Delete</button>` : ''}
+      </div>
+      <div class="post-comments" data-post-comments="${p.id}" hidden></div>
+    </div>`;
+}
+
+async function toggleGroupPostComments(groupId, postId) {
+  const panel = document.querySelector(`[data-post-comments="${postId}"]`);
+  if (!panel.hidden) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  panel.innerHTML = '<p style="font-size:0.8rem;color:var(--color-text-muted)">Loading…</p>';
+  try {
+    const comments = await Api.listGroupPostComments(groupId, postId);
+    const list = comments.length
+      ? comments
+          .map(
+            (c) => `
+        <li style="margin-bottom:6px">
+          <strong>${escapeHtml(c.authorName)}</strong> ${formatDate(c.createdAt)}<br/>
+          ${escapeHtml(c.body)}
+          ${c.authorUserId === state.user?.id ? ` <button class="small danger" data-action="comment-delete" data-post="${postId}" data-comment="${c.id}">Delete</button>` : ''}
+        </li>`,
+          )
+          .join('')
+      : '<li style="color:var(--color-text-muted);font-style:italic">No comments yet.</li>';
+
+    panel.innerHTML = `
+      <ul style="list-style:none;padding:0;margin:8px 0">${list}</ul>
+      <form class="inline-form" data-comment-form="${postId}" novalidate>
+        <div class="field" style="flex:1"><input placeholder="Write a comment…" required /></div>
+        <button class="small primary" type="submit">Reply</button>
+      </form>`;
+
+    panel.querySelector(`[data-comment-form="${postId}"]`).addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const input = event.target.querySelector('input');
+      try {
+        await Api.addGroupPostComment(groupId, postId, { body: input.value.trim() });
+        panel.hidden = true;
+        await toggleGroupPostComments(groupId, postId);
+        renderRoute();
+      } catch (err) {
+        window.alert(err.message);
+      }
+    });
+
+    panel.querySelectorAll('[data-action="comment-delete"]').forEach((btn) =>
+      btn.addEventListener('click', () =>
+        runAction(btn, () => Api.deleteGroupPostComment(groupId, btn.dataset.post, btn.dataset.comment)),
+      ),
+    );
+  } catch (err) {
+    panel.innerHTML = `<div class="alert error" role="alert">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function renderGroupDetail(groupId) {
+  let group;
+  try {
+    group = await Api.getGroup(groupId);
+  } catch (err) {
+    return { title: 'Group', body: `<div class="alert error" role="alert">${escapeHtml(err.message)}</div>` };
+  }
+
+  const isMember = group.myStatus === 'active';
+  const isOwner = group.myRole === 'owner';
+  const canManage = isMember && (group.myRole === 'owner' || group.myRole === 'administrator');
+  const canModerate = isMember && ['owner', 'administrator', 'moderator'].includes(group.myRole);
+
+  let posts = [];
+  let members = [];
+  let joinRequests = [];
+  let reports = [];
+  if (isMember) {
+    [posts, members] = await Promise.all([Api.listGroupPosts(groupId), Api.listGroupMembers(groupId)]);
+    if (canManage) joinRequests = await Api.listGroupJoinRequests(groupId).catch(() => []);
+    if (canModerate) reports = await Api.listGroupReports(groupId).catch(() => []);
+  }
+
+  const membershipNote = !group.myStatus
+    ? group.membershipType === 'invite_only'
+      ? '<p style="color:var(--color-text-muted)">This group is invite-only.</p>'
+      : `<button class="primary" id="group-join-btn">${group.membershipType === 'request' ? 'Request to join' : 'Join group'}</button>`
+    : group.myStatus === 'pending'
+      ? '<p style="color:var(--color-text-muted)">Your request to join is awaiting approval.</p>'
+      : group.myStatus === 'invited'
+        ? `
+        <div class="actions-row">
+          <button class="primary" id="group-invite-accept-btn">Accept invitation</button>
+          <button class="btn-plain" id="group-invite-decline-btn">Decline</button>
+        </div>`
+        : group.myStatus === 'suspended' || group.myStatus === 'muted'
+          ? `<p style="color:var(--color-text-muted)">Your membership is currently ${escapeHtml(group.myStatus)}${group.myStatus === 'muted' ? ' — you can view the group but not post.' : '.'}</p>`
+          : ['removed', 'declined', 'left'].includes(group.myStatus)
+            ? `<p style="color:var(--color-text-muted)">You are not currently a member (${escapeHtml(group.myStatus)}).</p>`
+            : '';
+
+  const memberRows = members
+    .map(
+      (m) => `
+    <tr>
+      <td>${escapeHtml(m.fullName)}</td>
+      <td>${badge(m.role)}</td>
+      <td>${badge(m.status)}</td>
+      <td>
+        ${
+          isOwner && m.role !== 'owner'
+            ? `<select class="tenant-select" data-action="member-role-select" data-member="${m.membershipId}" style="font-size:0.8rem">
+                 <option value="member" ${m.role === 'member' ? 'selected' : ''}>Member</option>
+                 <option value="moderator" ${m.role === 'moderator' ? 'selected' : ''}>Moderator</option>
+                 <option value="administrator" ${m.role === 'administrator' ? 'selected' : ''}>Administrator</option>
+               </select>`
+            : ''
+        }
+        ${
+          canModerate && m.role !== 'owner' && m.userId !== state.user?.id
+            ? `<div class="actions-row" style="margin-top:4px">
+                 <button class="small" data-action="member-moderate" data-member="${m.membershipId}" data-mod-action="warn">Warn</button>
+                 <button class="small" data-action="member-moderate" data-member="${m.membershipId}" data-mod-action="mute">Mute</button>
+                 <button class="small" data-action="member-moderate" data-member="${m.membershipId}" data-mod-action="suspend">Suspend</button>
+                 <button class="small danger" data-action="member-moderate" data-member="${m.membershipId}" data-mod-action="remove">Remove</button>
+               </div>`
+            : ''
+        }
+      </td>
+    </tr>`,
+    )
+    .join('');
+
+  const joinRequestRows = joinRequests.length
+    ? joinRequests
+        .map(
+          (r) => `
+    <tr>
+      <td>${escapeHtml(r.fullName)}</td>
+      <td>
+        <div class="actions-row">
+          <button class="small primary" data-action="join-request-approve" data-member="${r.membershipId}">Approve</button>
+          <button class="small danger" data-action="join-request-decline" data-member="${r.membershipId}">Decline</button>
+        </div>
+      </td>
+    </tr>`,
+        )
+        .join('')
+    : '<tr class="empty-row"><td colspan="2">No pending requests.</td></tr>';
+
+  const reportRows = reports.length
+    ? reports
+        .map(
+          (r) => `
+    <tr>
+      <td>${badge(r.targetType)}</td>
+      <td>${escapeHtml(r.reason)}</td>
+      <td>
+        <div class="actions-row">
+          <button class="small primary" data-action="report-decide" data-report="${r.id}" data-decision="retained">Retain</button>
+          <button class="small" data-action="report-decide" data-report="${r.id}" data-decision="hidden">Hide</button>
+          <button class="small danger" data-action="report-decide" data-report="${r.id}" data-decision="removed">Remove</button>
+        </div>
+      </td>
+    </tr>`,
+        )
+        .join('')
+    : '<tr class="empty-row"><td colspan="3">No open reports.</td></tr>';
+
+  const postsHtml = isMember
+    ? posts.length
+      ? posts.map((p) => renderPostCard(p, canModerate)).join('')
+      : '<p style="color:var(--color-text-muted);font-style:italic">No posts yet — start the conversation.</p>'
+    : '';
+
+  const body = `
+    <a href="#/t/${state.tenantId}/groups" style="font-size:0.85rem">&larr; All groups</a>
+    <h1 class="page-title">${escapeHtml(group.name)}</h1>
+    <p style="color:var(--color-text-muted)">
+      ${badge(group.visibility)} ${badge(group.membershipType)} · ${group.memberCount} member${group.memberCount === 1 ? '' : 's'}
+      ${group.industryCategory ? ` · ${escapeHtml(group.industryCategory)}` : ''}
+      ${group.locationText ? ` · ${escapeHtml(group.locationText)}` : ''}
+    </p>
+    ${group.description ? `<p>${escapeHtml(group.description)}</p>` : ''}
+    ${group.rules ? `<div class="panel"><h2>Group rules</h2><p style="white-space:pre-wrap">${escapeHtml(group.rules)}</p></div>` : ''}
+
+    <div id="group-membership-alert" class="alert error" role="alert" hidden></div>
+    <div class="panel">${membershipNote}</div>
+
+    ${
+      isMember
+        ? `
+    <div class="panel">
+      <h2>Post to the group</h2>
+      <div id="group-post-alert" class="alert error" role="alert" hidden></div>
+      <form id="group-post-form" novalidate>
+        <div class="field">
+          <label for="gp-topic">Topic</label>
+          <select id="gp-topic">
+            <option value="general">General</option>
+            <option value="service">Service</option>
+            <option value="product">Product</option>
+            <option value="invention">Invention</option>
+            <option value="business_idea">Business idea</option>
+            <option value="industry_knowledge">Industry knowledge</option>
+            <option value="opportunity">Opportunity</option>
+            <option value="event">Event</option>
+            <option value="training">Training</option>
+            <option value="question">Question</option>
+          </select>
+        </div>
+        <div class="field"><label for="gp-body">What's on your mind?</label><textarea id="gp-body" rows="3" required></textarea></div>
+        <div class="field" id="gp-ip-field" hidden>
+          <label><input type="checkbox" id="gp-ip-ack" /> I understand this post may disclose product/invention details and I acknowledge the intellectual-property notice.</label>
+        </div>
+        <div class="field"><label for="gp-attachment">Attach a file (optional)</label><input id="gp-attachment" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,application/pdf" /></div>
+        <button class="primary" type="submit">Post</button>
+      </form>
+    </div>
+
+    <div>${postsHtml}</div>
+
+    <div class="panel">
+      <h2>Members</h2>
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Role</th><th>Status</th><th></th></tr></thead>
+        <tbody>${memberRows}</tbody>
+      </table>
+    </div>`
+        : ''
+    }
+
+    ${
+      canManage
+        ? `
+    <div class="panel">
+      <h2>Invite a member</h2>
+      <div id="group-invite-alert" class="alert error" role="alert" hidden></div>
+      <form id="group-invite-form" class="inline-form" novalidate>
+        <div class="field"><label for="gi-email">Email</label><input id="gi-email" type="email" required /></div>
+        <button class="primary" type="submit">Invite</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h2>Join requests</h2>
+      <table class="data-table"><thead><tr><th>Name</th><th></th></tr></thead><tbody>${joinRequestRows}</tbody></table>
+    </div>`
+        : ''
+    }
+
+    ${
+      canModerate
+        ? `
+    <div class="panel">
+      <h2>Reported content</h2>
+      <table class="data-table"><thead><tr><th>Type</th><th>Reason</th><th></th></tr></thead><tbody>${reportRows}</tbody></table>
+    </div>`
+        : ''
+    }
+
+    ${
+      isOwner
+        ? `
+    <div class="panel">
+      <h2>Group settings</h2>
+      <div id="group-settings-alert" class="alert error" role="alert" hidden></div>
+      <form id="group-settings-form" novalidate class="inline-form">
+        <div class="field"><label for="gs-name">Name</label><input id="gs-name" value="${escapeHtml(group.name)}" /></div>
+        <div class="field">
+          <label for="gs-visibility">Visibility</label>
+          <select id="gs-visibility">
+            <option value="public" ${group.visibility === 'public' ? 'selected' : ''}>Public</option>
+            <option value="private" ${group.visibility === 'private' ? 'selected' : ''}>Private</option>
+            <option value="hidden" ${group.visibility === 'hidden' ? 'selected' : ''}>Hidden</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="gs-membership-type">Joining</label>
+          <select id="gs-membership-type">
+            <option value="open" ${group.membershipType === 'open' ? 'selected' : ''}>Open</option>
+            <option value="request" ${group.membershipType === 'request' ? 'selected' : ''}>Request to join</option>
+            <option value="invite_only" ${group.membershipType === 'invite_only' ? 'selected' : ''}>Invite only</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1;min-width:240px"><label for="gs-rules">Group rules</label><textarea id="gs-rules" rows="2">${escapeHtml(group.rules ?? '')}</textarea></div>
+        <button class="primary" type="submit">Save settings</button>
+      </form>
+      <p style="color:var(--color-text-muted);font-size:0.85rem;margin-top:12px">
+        As owner you must transfer ownership to another active member (by their member ID below) before you can leave,
+        or close the group instead.
+      </p>
+      <form id="group-transfer-form" class="inline-form" novalidate>
+        <div class="field"><label for="gt-user">New owner's user ID</label><input id="gt-user" required /></div>
+        <button class="btn-plain" type="submit">Transfer ownership</button>
+      </form>
+      <button class="btn-plain" id="group-close-btn" style="margin-top:8px">Close this group</button>
+    </div>`
+        : ''
+    }
+  `;
+
+  const after = () => {
+    const joinBtn = document.getElementById('group-join-btn');
+    if (joinBtn) {
+      joinBtn.addEventListener('click', () => runAction(joinBtn, () => Api.joinGroup(groupId)));
+    }
+    const acceptBtn = document.getElementById('group-invite-accept-btn');
+    if (acceptBtn) acceptBtn.addEventListener('click', () => runAction(acceptBtn, () => Api.acceptGroupInvitation(groupId)));
+    const declineBtn = document.getElementById('group-invite-decline-btn');
+    if (declineBtn) declineBtn.addEventListener('click', () => runAction(declineBtn, () => Api.declineGroupInvitation(groupId)));
+
+    const postForm = document.getElementById('group-post-form');
+    if (postForm) {
+      const topicSelect = document.getElementById('gp-topic');
+      const ipField = document.getElementById('gp-ip-field');
+      const syncIpField = () => {
+        ipField.hidden = !['product', 'invention'].includes(topicSelect.value);
+      };
+      topicSelect.addEventListener('change', syncIpField);
+      syncIpField();
+
+      postForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const alertBox = document.getElementById('group-post-alert');
+        alertBox.hidden = true;
+        const topic = topicSelect.value;
+        const ipAck = document.getElementById('gp-ip-ack').checked;
+        if (['product', 'invention'].includes(topic) && !ipAck) {
+          alertBox.textContent = 'Please acknowledge the intellectual-property notice before posting.';
+          alertBox.hidden = false;
+          return;
+        }
+        const fileInput = document.getElementById('gp-attachment');
+        try {
+          const post = await Api.createGroupPost(groupId, { topic, body: document.getElementById('gp-body').value.trim(), ipAck });
+          if (fileInput.files[0]) {
+            await Api.uploadGroupPostAttachment(groupId, post.id, fileInput.files[0]);
+          }
+          renderRoute();
+        } catch (err) {
+          alertBox.textContent = err.message;
+          alertBox.hidden = false;
+        }
+      });
+    }
+
+    document.querySelectorAll('[data-action="post-react"]').forEach((btn) =>
+      btn.addEventListener('click', () =>
+        runAction(btn, () => (btn.dataset.reacted === 'true' ? Api.unreactToGroupPost(groupId, btn.dataset.post) : Api.reactToGroupPost(groupId, btn.dataset.post))),
+      ),
+    );
+    document.querySelectorAll('[data-action="post-share"]').forEach((btn) =>
+      btn.addEventListener('click', () => runAction(btn, () => Api.shareGroupPost(groupId, btn.dataset.post))),
+    );
+    document.querySelectorAll('[data-action="post-delete"]').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        if (!window.confirm('Delete this post?')) return;
+        runAction(btn, () => Api.deleteGroupPost(groupId, btn.dataset.post));
+      }),
+    );
+    document.querySelectorAll('[data-action="post-comments-toggle"]').forEach((btn) =>
+      btn.addEventListener('click', () => toggleGroupPostComments(groupId, btn.dataset.post)),
+    );
+    document.querySelectorAll('[data-action="post-report"]').forEach((btn) =>
+      btn.addEventListener('click', async () => {
+        const reason = window.prompt('Why are you reporting this post?');
+        if (!reason) return;
+        try {
+          await Api.reportGroupContent(groupId, { targetType: 'post', targetId: btn.dataset.post, reason });
+          window.alert('Report submitted. A moderator will review it.');
+        } catch (err) {
+          window.alert(err.message);
+        }
+      }),
+    );
+
+    const inviteForm = document.getElementById('group-invite-form');
+    if (inviteForm) {
+      inviteForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const alertBox = document.getElementById('group-invite-alert');
+        alertBox.hidden = true;
+        try {
+          await Api.inviteGroupMember(groupId, document.getElementById('gi-email').value.trim());
+          renderRoute();
+        } catch (err) {
+          alertBox.textContent = err.message;
+          alertBox.hidden = false;
+        }
+      });
+    }
+
+    document.querySelectorAll('[data-action="join-request-approve"]').forEach((btn) =>
+      btn.addEventListener('click', () => runAction(btn, () => Api.approveGroupJoinRequest(groupId, btn.dataset.member))),
+    );
+    document.querySelectorAll('[data-action="join-request-decline"]').forEach((btn) =>
+      btn.addEventListener('click', () => runAction(btn, () => Api.declineGroupJoinRequest(groupId, btn.dataset.member))),
+    );
+
+    document.querySelectorAll('[data-action="member-role-select"]').forEach((select) =>
+      select.addEventListener('change', () =>
+        runAction(select, () => Api.changeGroupMemberRole(groupId, select.dataset.member, select.value)),
+      ),
+    );
+    document.querySelectorAll('[data-action="member-moderate"]').forEach((btn) =>
+      btn.addEventListener('click', async () => {
+        const reason = window.prompt(`Reason for this action (${btn.dataset.modAction})?`);
+        if (!reason) return;
+        await runAction(btn, () => Api.moderateGroupMember(groupId, btn.dataset.member, btn.dataset.modAction, reason));
+      }),
+    );
+
+    document.querySelectorAll('[data-action="report-decide"]').forEach((btn) =>
+      btn.addEventListener('click', async () => {
+        const reason = window.prompt('Reason for this decision?');
+        if (!reason) return;
+        await runAction(btn, () => Api.decideGroupReport(groupId, btn.dataset.report, { decision: btn.dataset.decision, reason }));
+      }),
+    );
+
+    const settingsForm = document.getElementById('group-settings-form');
+    if (settingsForm) {
+      settingsForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const alertBox = document.getElementById('group-settings-alert');
+        alertBox.hidden = true;
+        try {
+          await Api.updateGroup(groupId, {
+            name: document.getElementById('gs-name').value.trim(),
+            visibility: document.getElementById('gs-visibility').value,
+            membershipType: document.getElementById('gs-membership-type').value,
+            rules: document.getElementById('gs-rules').value.trim() || undefined,
+          });
+          renderRoute();
+        } catch (err) {
+          alertBox.textContent = err.message;
+          alertBox.hidden = false;
+        }
+      });
+    }
+
+    const transferForm = document.getElementById('group-transfer-form');
+    if (transferForm) {
+      transferForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        try {
+          await Api.transferGroupOwnership(groupId, document.getElementById('gt-user').value.trim());
+          renderRoute();
+        } catch (err) {
+          window.alert(err.message);
+        }
+      });
+    }
+
+    const closeBtn = document.getElementById('group-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        if (!window.confirm('Close this group? This cannot be undone from here.')) return;
+        runAction(closeBtn, () => Api.closeGroup(groupId));
+      });
+    }
+  };
+
+  return { title: group.name, body, after };
+}
+
+views.groups = async () => {
+  const { section } = parseRoute();
+  const match = section.match(/^groups\/([^/]+)$/);
+  if (match) {
+    return renderGroupDetail(match[1]);
+  }
+  return renderGroupList();
 };
 
 // ---------------------------------------------------------------------

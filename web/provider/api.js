@@ -186,6 +186,70 @@ const Api = {
   listPayouts: (tenantId) => apiRequest(`/tenants/${tenantId}/payouts`),
   requestPayout: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/payouts`, { method: 'POST', body: payload }),
 
+  // Community groups (User Story 5) -- user-level, not tenant-scoped
+  // (see group.service.ts's header comment), but shown as a tab
+  // within the tenant shell same as "My Listings".
+  discoverGroups: (query) => apiRequest(`/groups${query ? `?${query}` : ''}`),
+  myGroupInvitations: () => apiRequest('/groups/invitations/mine'),
+  createGroup: (payload) => apiRequest('/groups', { method: 'POST', body: payload }),
+  getGroup: (groupId) => apiRequest(`/groups/${groupId}`),
+  updateGroup: (groupId, payload) => apiRequest(`/groups/${groupId}`, { method: 'PATCH', body: payload }),
+  joinGroup: (groupId) => apiRequest(`/groups/${groupId}/join`, { method: 'POST' }),
+  leaveGroup: (groupId) => apiRequest(`/groups/${groupId}/leave`, { method: 'POST' }),
+  closeGroup: (groupId) => apiRequest(`/groups/${groupId}/close`, { method: 'POST' }),
+  transferGroupOwnership: (groupId, newOwnerUserId) =>
+    apiRequest(`/groups/${groupId}/transfer-ownership`, { method: 'POST', body: { newOwnerUserId } }),
+  listGroupMembers: (groupId) => apiRequest(`/groups/${groupId}/members`),
+  listGroupJoinRequests: (groupId) => apiRequest(`/groups/${groupId}/join-requests`),
+  approveGroupJoinRequest: (groupId, memberId) => apiRequest(`/groups/${groupId}/join-requests/${memberId}/approve`, { method: 'POST' }),
+  declineGroupJoinRequest: (groupId, memberId) => apiRequest(`/groups/${groupId}/join-requests/${memberId}/decline`, { method: 'POST' }),
+  inviteGroupMember: (groupId, email) => apiRequest(`/groups/${groupId}/invitations`, { method: 'POST', body: { email } }),
+  acceptGroupInvitation: (groupId) => apiRequest(`/groups/${groupId}/invitations/accept`, { method: 'POST' }),
+  declineGroupInvitation: (groupId) => apiRequest(`/groups/${groupId}/invitations/decline`, { method: 'POST' }),
+  changeGroupMemberRole: (groupId, memberId, role) =>
+    apiRequest(`/groups/${groupId}/members/${memberId}/role`, { method: 'PATCH', body: { role } }),
+  moderateGroupMember: (groupId, memberId, action, reason) =>
+    apiRequest(`/groups/${groupId}/members/${memberId}/moderate`, { method: 'POST', body: { action, reason } }),
+  listGroupPosts: (groupId) => apiRequest(`/groups/${groupId}/posts`),
+  createGroupPost: (groupId, payload) => apiRequest(`/groups/${groupId}/posts`, { method: 'POST', body: payload }),
+  updateGroupPost: (groupId, postId, body) => apiRequest(`/groups/${groupId}/posts/${postId}`, { method: 'PATCH', body: { body } }),
+  deleteGroupPost: (groupId, postId) => apiRequest(`/groups/${groupId}/posts/${postId}`, { method: 'DELETE' }),
+  reactToGroupPost: (groupId, postId) => apiRequest(`/groups/${groupId}/posts/${postId}/react`, { method: 'POST' }),
+  unreactToGroupPost: (groupId, postId) => apiRequest(`/groups/${groupId}/posts/${postId}/react`, { method: 'DELETE' }),
+  shareGroupPost: (groupId, postId) => apiRequest(`/groups/${groupId}/posts/${postId}/share`, { method: 'POST' }),
+  listGroupPostComments: (groupId, postId) => apiRequest(`/groups/${groupId}/posts/${postId}/comments`),
+  addGroupPostComment: (groupId, postId, payload) =>
+    apiRequest(`/groups/${groupId}/posts/${postId}/comments`, { method: 'POST', body: payload }),
+  deleteGroupPostComment: (groupId, postId, commentId) =>
+    apiRequest(`/groups/${groupId}/posts/${postId}/comments/${commentId}`, { method: 'DELETE' }),
+  reportGroupContent: (groupId, payload) => apiRequest(`/groups/${groupId}/moderation/reports`, { method: 'POST', body: payload }),
+  listGroupReports: (groupId) => apiRequest(`/groups/${groupId}/moderation/reports`),
+  decideGroupReport: (groupId, reportId, payload) =>
+    apiRequest(`/groups/${groupId}/moderation/reports/${reportId}/decide`, { method: 'POST', body: payload }),
+  async uploadGroupPostAttachment(groupId, postId, file) {
+    const token = getAccessToken();
+    if (!token) {
+      window.location.href = 'login.html';
+      throw new Error('Not signed in.');
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE_URL}/groups/${groupId}/posts/${postId}/attachments`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) {
+        clearSession();
+        window.location.href = 'login.html';
+      }
+      throw new Error(data?.error?.message || `Request failed (${res.status}).`);
+    }
+    return data;
+  },
+
   // marketplace listings (User Story 2) — owned by the signed-in user
   // directly, not this tenant, but managed from this portal since any
   // Service Provider is also a registered user (see
