@@ -7,6 +7,12 @@
 <link rel="stylesheet" href="../auth/tokens.css" />
 <link rel="stylesheet" href="../provider/app.css" />
 <link rel="stylesheet" href="app.css" />
+<!-- US-009: map view for the Marketplace browse page. Leaflet + OpenStreetMap
+     tiles — no API key needed. If this CDN script fails to load for any
+     reason, web/shared/listing-ui.js's renderMap() falls back to a
+     "map couldn't load" message and the list view keeps working. -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body class="no-tenant">
 <div class="shell">

@@ -210,3 +210,23 @@ button.small:disabled { opacity: 0.5; cursor: not-allowed; }
   display: block;
   margin-bottom: 4px;
 }
+
+/* US-009 (map view) + US-006 (AI search box), added on top of the US-002
+   marketplace-listing styles above — same shared file, used by both
+   the provider and customer portals. */
+.market-view-toggle button {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+.market-view-toggle button.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+.ai-search-panel {
+  margin-bottom: var(--space-4);
+}
+.ai-search-result {
+  margin-top: var(--space-3);
+}

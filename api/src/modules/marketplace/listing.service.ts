@@ -3,6 +3,10 @@ import { DatabaseService } from '../../database/database.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateListingDto, DecideListingDto, DiscoverListingsQueryDto, UpdateListingDto } from './dto/listing.dto';
 
+// Default search radius (km) when the customer's position is known but
+// they haven't picked a specific radius (US-004/US-009).
+const DEFAULT_RADIUS_KM = 50;
+
 type ListingRow = {
   id: string;
   owner_user_id: string;
@@ -19,6 +23,8 @@ type ListingRow = {
   contact_value: string;
   status: string;
   rejection_reason: string | null;
+  latitude: number | null;
+  longitude: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -48,6 +54,11 @@ export interface ListingDetail {
   contactValue: string;
   status: string;
   rejectionReason: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  // Only populated when a search was run with the customer's lat/lng
+  // (see search() below) — absent from ordinary owner/admin reads.
+  distanceKm?: number;
   createdAt: string;
   updatedAt: string;
   images: { id: string; url: string; position: number }[];
@@ -85,8 +96,8 @@ export class ListingService {
     const [row] = await this.db.query<ListingRow>(
       `INSERT INTO listing
          (owner_user_id, listing_type, title, category, description, price_minor_units, currency_code,
-          price_type, country_code, location_text, contact_method, contact_value)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          price_type, country_code, location_text, latitude, longitude, contact_method, contact_value)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
         ownerUserId,
@@ -99,6 +110,8 @@ export class ListingService {
         dto.priceType,
         dto.countryCode ?? null,
         dto.locationText ?? null,
+        dto.latitude ?? null,
+        dto.longitude ?? null,
         dto.contactMethod,
         dto.contactValue,
       ],
@@ -129,8 +142,9 @@ export class ListingService {
       `UPDATE listing SET
          listing_type = $2, title = $3, category = $4, description = $5,
          price_minor_units = $6, currency_code = $7, price_type = $8,
-         country_code = $9, location_text = $10, contact_method = $11, contact_value = $12,
-         status = $13, rejection_reason = NULL, updated_at = now()
+         country_code = $9, location_text = $10, latitude = $11, longitude = $12,
+         contact_method = $13, contact_value = $14,
+         status = $15, rejection_reason = NULL, updated_at = now()
        WHERE id = $1
        RETURNING *`,
       [
@@ -144,6 +158,8 @@ export class ListingService {
         priceType,
         dto.countryCode ?? existing.country_code,
         dto.locationText ?? existing.location_text,
+        dto.latitude ?? existing.latitude,
+        dto.longitude ?? existing.longitude,
         dto.contactMethod ?? existing.contact_method,
         dto.contactValue ?? existing.contact_value,
         nextStatus,
@@ -250,6 +266,18 @@ export class ListingService {
 
   // -- Public discovery (published only) --------------------------------
 
+  /**
+   * US-004 (nearby), US-008 (filter/sort), US-009 (map): a listing's
+   * distance from the customer is computed with a plain haversine
+   * formula (great-circle distance in km) rather than PostGIS/
+   * earth_distance, since that needs a Postgres extension this
+   * project doesn't otherwise require — see migration 013's comment.
+   * lat/lng only take effect together; a listing with no
+   * latitude/longitude of its own always computes a NULL distance, so
+   * it's naturally excluded by a radius filter but still shows up
+   * (with no distance) in an un-radius-limited, non-distance-sorted
+   * search.
+   */
   async search(query: DiscoverListingsQueryDto): Promise<ListingDetail[]> {
     const conditions: string[] = [`status = 'published'`];
     const params: unknown[] = [];
@@ -274,9 +302,58 @@ export class ListingService {
       params.push(`%${query.search}%`);
       conditions.push(`(title ILIKE $${params.length} OR description ILIKE $${params.length} OR category ILIKE $${params.length})`);
     }
+    if (query.minPrice !== undefined) {
+      params.push(query.minPrice);
+      conditions.push(`(price_minor_units IS NOT NULL AND price_minor_units >= $${params.length})`);
+    }
+    if (query.maxPrice !== undefined) {
+      params.push(query.maxPrice);
+      conditions.push(`(price_minor_units IS NOT NULL AND price_minor_units <= $${params.length})`);
+    }
 
-    const rows = await this.db.query<ListingRow>(
-      `SELECT * FROM listing WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC LIMIT 100`,
+    let distanceSelect = 'NULL::DOUBLE PRECISION AS distance_km';
+    const hasPosition = query.lat !== undefined && query.lng !== undefined;
+    let latIdx = 0;
+    let lngIdx = 0;
+    if (hasPosition) {
+      params.push(query.lat);
+      latIdx = params.length;
+      params.push(query.lng);
+      lngIdx = params.length;
+      distanceSelect = `CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN
+          6371 * acos(LEAST(1, GREATEST(-1,
+            cos(radians($${latIdx})) * cos(radians(latitude)) * cos(radians(longitude) - radians($${lngIdx})) +
+            sin(radians($${latIdx})) * sin(radians(latitude))
+          )))
+        ELSE NULL END AS distance_km`;
+    }
+
+    let radiusFilter = '';
+    if (hasPosition) {
+      params.push(query.radiusKm ?? DEFAULT_RADIUS_KM);
+      radiusFilter = ` AND (sub.distance_km IS NULL OR sub.distance_km <= $${params.length})`;
+    }
+
+    let orderBy = 'sub.updated_at DESC';
+    if (query.sort === 'distance' && hasPosition) {
+      orderBy = 'sub.distance_km ASC NULLS LAST, sub.updated_at DESC';
+    } else if (query.sort === 'price_asc') {
+      orderBy = 'sub.price_minor_units ASC NULLS LAST, sub.updated_at DESC';
+    } else if (query.sort === 'price_desc') {
+      orderBy = 'sub.price_minor_units DESC NULLS LAST, sub.updated_at DESC';
+    } else if (query.sort === 'newest') {
+      orderBy = 'sub.updated_at DESC';
+    }
+
+    const rows = await this.db.query<ListingRow & { distance_km: number | null }>(
+      `SELECT * FROM (
+         SELECT *, ${distanceSelect}
+         FROM listing
+         WHERE ${conditions.join(' AND ')}
+       ) sub
+       WHERE true${radiusFilter}
+       ORDER BY ${orderBy}
+       LIMIT 100`,
       params,
     );
     if (rows.length === 0) {
@@ -286,7 +363,9 @@ export class ListingService {
       `SELECT * FROM listing_image WHERE listing_id = ANY($1::uuid[]) ORDER BY position ASC`,
       [rows.map((r) => r.id)],
     );
-    return rows.map((row) => this.toDetail(row, images.filter((img) => img.listing_id === row.id)));
+    return rows.map((row) =>
+      this.toDetail(row, images.filter((img) => img.listing_id === row.id), row.distance_km ?? undefined),
+    );
   }
 
   async getPublished(listingId: string): Promise<ListingDetail> {
@@ -355,7 +434,7 @@ export class ListingService {
     return this.db.query<ImageRow>(`SELECT * FROM listing_image WHERE listing_id = $1 ORDER BY position ASC`, [listingId]);
   }
 
-  private toDetail(row: ListingRow, images: ImageRow[]): ListingDetail {
+  private toDetail(row: ListingRow, images: ImageRow[], distanceKm?: number): ListingDetail {
     return {
       id: row.id,
       ownerUserId: row.owner_user_id,
@@ -368,6 +447,9 @@ export class ListingService {
       priceType: row.price_type,
       countryCode: row.country_code,
       locationText: row.location_text,
+      latitude: row.latitude,
+      longitude: row.longitude,
+      distanceKm: distanceKm !== undefined ? Math.round(distanceKm * 10) / 10 : undefined,
       contactMethod: row.contact_method,
       contactValue: row.contact_value,
       status: row.status,

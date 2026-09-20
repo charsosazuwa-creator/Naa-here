@@ -67,6 +67,27 @@ export interface AppConfig {
     google: { clientId: string; clientSecret: string };
     facebook: { clientId: string; clientSecret: string };
   };
+  // US-005 (search businesses using Google): a server-side-only key
+  // for the Google Places API (Text Search / Nearby Search), used to
+  // supplement platform listings with nearby Google-sourced results.
+  // Optional: GooglePlacesService.isConfigured() returns false and the
+  // discovery endpoint falls back to platform-only results with a
+  // clear message when this is empty, same "ships without it, upgrade
+  // later" shape as the OAuth credentials above.
+  googlePlaces: {
+    apiKey: string;
+  };
+  // US-006/US-007 (natural-language AI search / recommendations): a
+  // server-side-only Anthropic API key used to turn a customer's free
+  // text ("find a barber near me who's open now") into structured
+  // search filters. Optional the same way: AiSearchService falls back
+  // to a plain keyword search when this is empty or the API call
+  // fails, so AI search degrades to standard search rather than
+  // breaking the page.
+  ai: {
+    anthropicApiKey: string;
+    model: string;
+  };
 }
 
 export default (): AppConfig => ({
@@ -112,5 +133,12 @@ export default (): AppConfig => ({
       clientId: process.env.FACEBOOK_CLIENT_ID ?? '',
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET ?? '',
     },
+  },
+  googlePlaces: {
+    apiKey: process.env.GOOGLE_PLACES_API_KEY ?? '',
+  },
+  ai: {
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? '',
+    model: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5-20251001',
   },
 });

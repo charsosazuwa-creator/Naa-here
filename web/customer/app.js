@@ -409,6 +409,12 @@ views.market = async (params) => {
     countryCode: params.get('country') || '',
     location: params.get('location') || '',
     search: params.get('q') || '',
+    sort: params.get('sort') || '',
+    minPrice: params.get('minPrice') || '',
+    maxPrice: params.get('maxPrice') || '',
+    lat: params.get('lat') || '',
+    lng: params.get('lng') || '',
+    radiusKm: params.get('radius') || '',
   };
   return ListingUI.renderMarketBrowse(Api, filters, 'market-item');
 };

@@ -97,6 +97,12 @@
           </select>
         </div>
         <div class="field"><label>Location / service area</label><input class="lf-location" value="${escapeHtml(l.locationText ?? '')}" placeholder="e.g. Lekki, Lagos" /></div>
+        <div class="field lf-geo-status" style="color:var(--color-text-muted);font-size:0.78rem"></div>
+        <input class="lf-lat" type="hidden" value="${l.latitude ?? ''}" />
+        <input class="lf-lng" type="hidden" value="${l.longitude ?? ''}" />
+        <button type="button" class="small lf-use-location">
+          ${l.latitude != null ? 'Update map pin to my current location' : 'Pin my current location (helps customers find you nearby)'}
+        </button>
         <div class="field">
           <label>Contact method</label>
           <select class="lf-contact-method tenant-select">
@@ -126,6 +132,28 @@
 
     const alertBox = container.querySelector('.listing-form-alert');
 
+    // US-004/US-009: an optional map pin, filled in via the browser's
+    // own geolocation rather than asking the owner to type coordinates.
+    const geoStatus = container.querySelector('.lf-geo-status');
+    const useLocationBtn = container.querySelector('.lf-use-location');
+    useLocationBtn.addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        geoStatus.textContent = 'Location is not available in this browser.';
+        return;
+      }
+      geoStatus.textContent = 'Getting your location…';
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          container.querySelector('.lf-lat').value = pos.coords.latitude;
+          container.querySelector('.lf-lng').value = pos.coords.longitude;
+          geoStatus.textContent = `Pinned at ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}.`;
+        },
+        () => {
+          geoStatus.textContent = 'Could not get your location — check your browser/device permissions.';
+        },
+      );
+    });
+
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       alertBox.hidden = true;
@@ -144,6 +172,8 @@
         currencyCode: needsPrice ? container.querySelector('.lf-currency').value : undefined,
         countryCode: container.querySelector('.lf-country').value || undefined,
         locationText: container.querySelector('.lf-location').value.trim() || undefined,
+        latitude: container.querySelector('.lf-lat').value !== '' ? Number(container.querySelector('.lf-lat').value) : undefined,
+        longitude: container.querySelector('.lf-lng').value !== '' ? Number(container.querySelector('.lf-lng').value) : undefined,
         contactMethod: container.querySelector('.lf-contact-method').value,
         contactValue: container.querySelector('.lf-contact-value').value.trim(),
       };
@@ -330,8 +360,185 @@
 
   // -- Public: Marketplace browse + detail (customer app only) -----------
 
+  function listingCardHtml(l, hashBase) {
+    const distance = l.distanceKm !== undefined ? `<div class="meta">${l.distanceKm} km away</div>` : '';
+    return `
+      <a class="service-card" href="#/${hashBase}/${l.id}">
+        ${l.images[0] ? `<img src="${escapeHtml(l.images[0].url)}" alt="" style="width:100%;border-radius:8px;margin-bottom:var(--space-2);aspect-ratio:4/3;object-fit:cover" />` : ''}
+        <div class="name">${escapeHtml(l.title)}</div>
+        <div class="tenant">${LISTING_TYPE_LABELS[l.listingType] ?? ''} · ${escapeHtml(l.category)}</div>
+        <div class="price">${priceLabel(l)}</div>
+        <div class="meta">${escapeHtml(l.locationText || COUNTRY_LABELS[l.countryCode] || '')}</div>
+        ${distance}
+      </a>`;
+  }
+
+  function listingGridHtml(listings, hashBase, emptyMessage) {
+    if (listings.length === 0) {
+      return `<p class="empty-state">${escapeHtml(emptyMessage)}</p>`;
+    }
+    return `<div class="service-grid">${listings.map((l) => listingCardHtml(l, hashBase)).join('')}</div>`;
+  }
+
+  // US-006/US-007: natural-language box. Interpreted criteria are shown
+  // back to the customer (AC "must show the interpreted... criteria")
+  // with a plain-English summary and a way to fall back to the regular
+  // filter form below if the interpretation isn't right (AC "the
+  // customer must be able to correct the interpreted criteria").
+  function aiSearchBoxHtml() {
+    return `
+      <div class="panel ai-search-panel">
+        <h2>Describe what you need</h2>
+        <p style="color:var(--color-text-muted);font-size:0.85rem">
+          e.g. "Find a barber near me who's open now" or "I need an electrician urgently" — we'll turn
+          this into a search you can check before we run it.
+        </p>
+        <form class="ai-search-form inline-form" novalidate>
+          <input class="ai-search-input" placeholder="Find a barber near me who's open now…" style="flex:1" />
+          <button class="small primary" type="submit">Ask</button>
+        </form>
+        <div class="ai-search-result" hidden></div>
+      </div>
+    `;
+  }
+
+  function wireAiSearchBox(container, Api, filters, hashBase) {
+    const form = container.querySelector('.ai-search-form');
+    const resultBox = container.querySelector('.ai-search-result');
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const query = container.querySelector('.ai-search-input').value.trim();
+      if (!query) return;
+      const submitBtn = form.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Thinking…';
+      resultBox.hidden = false;
+      resultBox.innerHTML = '<p class="empty-state">Interpreting your request…</p>';
+
+      try {
+        const response = await Api.aiSearch({
+          query,
+          lat: filters.lat ? Number(filters.lat) : undefined,
+          lng: filters.lng ? Number(filters.lng) : undefined,
+          radiusKm: filters.radiusKm ? Number(filters.radiusKm) : undefined,
+        });
+
+        const interpreted = response.interpreted;
+        const summaryParts = interpreted
+          ? [
+              interpreted.listingType ? LISTING_TYPE_LABELS[interpreted.listingType] : null,
+              interpreted.category,
+              interpreted.location ? `near "${interpreted.location}"` : null,
+              interpreted.urgent ? 'marked urgent' : null,
+            ].filter(Boolean)
+          : [];
+
+        const summary = !response.available
+          ? '<p style="color:var(--color-text-muted);font-size:0.85rem">AI search isn\'t set up yet — showing a plain keyword search instead.</p>'
+          : summaryParts.length
+            ? `<p style="font-size:0.85rem">We understood this as: <strong>${escapeHtml(summaryParts.join(', '))}</strong>. Not quite right? Use the filters below instead.</p>`
+            : '<p style="color:var(--color-text-muted);font-size:0.85rem">We couldn\'t pick out specific filters from that — showing a plain keyword search instead.</p>';
+
+        resultBox.innerHTML = `
+          ${summary}
+          ${listingGridHtml(response.results, hashBase, 'No listings matched — try rephrasing, or use the filters below.')}
+        `;
+      } catch (err) {
+        resultBox.innerHTML = `<div class="alert error" role="alert">${escapeHtml(err.message)}</div>`;
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Ask';
+      }
+    });
+  }
+
+  // US-005: a clearly separate, clearly labeled section — never merged
+  // into the platform-listing grid above (AC "a Google result must not
+  // automatically become a verified platform provider").
+  function googleSectionHtml(available, results) {
+    if (!available) {
+      return `
+        <div class="panel" style="margin-top:var(--space-4)">
+          <h2>Nearby on Google</h2>
+          <p class="empty-state">Google search isn't set up yet.</p>
+        </div>`;
+    }
+    if (results.length === 0) {
+      return '';
+    }
+    return `
+      <div class="panel" style="margin-top:var(--space-4)">
+        <h2>Also nearby on Google</h2>
+        <p style="color:var(--color-text-muted);font-size:0.78rem">
+          Found via Google — these aren't verified platform providers.
+        </p>
+        <div class="service-grid">
+          ${results
+            .map(
+              (r) => `
+          <div class="service-card">
+            <span class="badge status-paused">Google</span>
+            <div class="name">${escapeHtml(r.name)}</div>
+            ${r.category ? `<div class="tenant">${escapeHtml(r.category)}</div>` : ''}
+            ${r.address ? `<div class="meta">${escapeHtml(r.address)}</div>` : ''}
+            ${r.rating ? `<div class="meta">Rating: ${r.rating}</div>` : ''}
+            ${r.openNow === true ? '<div class="meta" style="color:var(--color-success, #1a7f37)">Open now</div>' : ''}
+          </div>`,
+            )
+            .join('')}
+        </div>
+      </div>`;
+  }
+
+  // US-009: a Leaflet map (no API key needed — OpenStreetMap tiles),
+  // loaded from index.html; if the CDN script didn't load for any
+  // reason, `window.L` is simply absent and this falls back to a
+  // message rather than breaking the page (AC "a list view must remain
+  // available if the map cannot load" — the list view above the toggle
+  // is always rendered regardless).
+  function renderMap(containerId, listings, hashBase) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (!window.L) {
+      el.innerHTML = '<p class="empty-state">The map couldn\'t load — use the list view above instead.</p>';
+      return;
+    }
+    const withCoords = listings.filter((l) => l.latitude != null && l.longitude != null);
+    if (withCoords.length === 0) {
+      el.innerHTML = '<p class="empty-state">None of these listings have a map pin yet.</p>';
+      return;
+    }
+    const map = window.L.map(el).setView([withCoords[0].latitude, withCoords[0].longitude], 11);
+    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(map);
+    const markers = withCoords.map((l) => {
+      const marker = window.L.marker([l.latitude, l.longitude]).addTo(map);
+      marker.bindPopup(`<strong>${escapeHtml(l.title)}</strong><br>${escapeHtml(priceLabel(l))}<br><a href="#/${hashBase}/${l.id}">View listing</a>`);
+      return marker;
+    });
+    if (markers.length > 1) {
+      map.fitBounds(window.L.featureGroup(markers).getBounds().pad(0.2));
+    }
+  }
+
   async function renderMarketBrowse(Api, filters, hashBase) {
-    const query = new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString();
+    const query = new URLSearchParams(
+      Object.entries({
+        listingType: filters.listingType,
+        countryCode: filters.countryCode,
+        location: filters.location,
+        search: filters.search,
+        sort: filters.sort,
+        minPrice: filters.minPrice,
+        maxPrice: filters.maxPrice,
+        lat: filters.lat,
+        lng: filters.lng,
+        radiusKm: filters.radiusKm,
+      }).filter(([, v]) => v),
+    ).toString();
 
     let listings = [];
     let loadError = null;
@@ -341,7 +548,19 @@
       loadError = err.message;
     }
 
+    let googleAvailable = false;
+    let googleResults = [];
+    try {
+      const g = await Api.searchGoogle(query);
+      googleAvailable = g.available;
+      googleResults = g.results || [];
+    } catch {
+      // Non-fatal — the platform-listing search above is what matters;
+      // the Google section just shows as unavailable.
+    }
+
     const body = `
+      ${aiSearchBoxHtml()}
       <h1 class="page-title">Marketplace</h1>
       <form class="marketplace-filters filters-bar" novalidate>
         <div class="field">
@@ -370,32 +589,48 @@
           <label>Location</label>
           <input class="mf-location" placeholder="e.g. Lagos" value="${escapeHtml(filters.location || '')}" />
         </div>
+        <div class="field">
+          <label>Min price</label>
+          <input class="mf-min-price" type="number" min="0" placeholder="0" value="${escapeHtml(filters.minPrice || '')}" />
+        </div>
+        <div class="field">
+          <label>Max price</label>
+          <input class="mf-max-price" type="number" min="0" placeholder="Any" value="${escapeHtml(filters.maxPrice || '')}" />
+        </div>
+        <div class="field">
+          <label>Sort by</label>
+          <select class="mf-sort tenant-select">
+            <option value="" ${!filters.sort ? 'selected' : ''}>Relevance</option>
+            <option value="newest" ${filters.sort === 'newest' ? 'selected' : ''}>Newest</option>
+            <option value="price_asc" ${filters.sort === 'price_asc' ? 'selected' : ''}>Price: low to high</option>
+            <option value="price_desc" ${filters.sort === 'price_desc' ? 'selected' : ''}>Price: high to low</option>
+            <option value="distance" ${filters.sort === 'distance' ? 'selected' : ''}>Distance</option>
+          </select>
+        </div>
+        <button type="button" class="small mf-near-me">${filters.lat ? 'Update my location' : 'Search near me'}</button>
         <button class="small primary" type="submit">Search</button>
       </form>
+      ${filters.lat ? '<p style="color:var(--color-text-muted);font-size:0.78rem">Showing results near your current location.</p>' : ''}
 
       ${loadError ? `<div class="alert error" role="alert">${escapeHtml(loadError)}</div>` : ''}
 
-      ${
-        !loadError && listings.length === 0
-          ? '<p class="empty-state">No listings match these filters yet. Try broadening your search.</p>'
-          : `<div class="service-grid">
-        ${listings
-          .map(
-            (l) => `
-        <a class="service-card" href="#/${hashBase}/${l.id}">
-          ${l.images[0] ? `<img src="${escapeHtml(l.images[0].url)}" alt="" style="width:100%;border-radius:8px;margin-bottom:var(--space-2);aspect-ratio:4/3;object-fit:cover" />` : ''}
-          <div class="name">${escapeHtml(l.title)}</div>
-          <div class="tenant">${LISTING_TYPE_LABELS[l.listingType] ?? ''} · ${escapeHtml(l.category)}</div>
-          <div class="price">${priceLabel(l)}</div>
-          <div class="meta">${escapeHtml(l.locationText || COUNTRY_LABELS[l.countryCode] || '')}</div>
-        </a>`,
-          )
-          .join('')}
-      </div>`
-      }
+      <div class="market-view-toggle" style="margin:var(--space-3) 0">
+        <button type="button" class="small mv-list active" data-view="list">List</button>
+        <button type="button" class="small mv-map" data-view="map">Map</button>
+      </div>
+      <div class="market-list-view">
+        ${!loadError ? listingGridHtml(listings, hashBase, 'No listings match these filters yet. Try broadening your search.') : ''}
+      </div>
+      <div class="market-map-view" style="display:none">
+        <div id="market-map" style="height:420px;border-radius:8px;overflow:hidden"></div>
+      </div>
+
+      ${googleSectionHtml(googleAvailable, googleResults)}
     `;
 
     const after = () => {
+      wireAiSearchBox(document.querySelector('.ai-search-panel'), Api, filters, hashBase);
+
       document.querySelector('.marketplace-filters').addEventListener('submit', (event) => {
         event.preventDefault();
         const q = new URLSearchParams(
@@ -404,9 +639,57 @@
             country: document.querySelector('.mf-country').value,
             location: document.querySelector('.mf-location').value.trim(),
             q: document.querySelector('.mf-search').value.trim(),
+            sort: document.querySelector('.mf-sort').value,
+            minPrice: document.querySelector('.mf-min-price').value,
+            maxPrice: document.querySelector('.mf-max-price').value,
+            lat: filters.lat || '',
+            lng: filters.lng || '',
+            radius: filters.radiusKm || '',
           }).filter(([, v]) => v),
         ).toString();
         window.location.hash = `#/${hashBase}${q ? `?${q}` : ''}`;
+      });
+
+      document.querySelector('.mf-near-me').addEventListener('click', () => {
+        if (!navigator.geolocation) {
+          window.alert('Location is not available in this browser.');
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const q = new URLSearchParams(
+              Object.entries({
+                type: filters.listingType || '',
+                country: filters.countryCode || '',
+                location: filters.location || '',
+                q: filters.search || '',
+                sort: filters.sort || 'distance',
+                minPrice: filters.minPrice || '',
+                maxPrice: filters.maxPrice || '',
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                radius: filters.radiusKm || '',
+              }).filter(([, v]) => v),
+            ).toString();
+            window.location.hash = `#/${hashBase}?${q}`;
+          },
+          () => window.alert('Could not get your location — check your browser/device permissions.'),
+        );
+      });
+
+      let mapInitialized = false;
+      document.querySelectorAll('.market-view-toggle button').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.market-view-toggle button').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          const showMap = btn.dataset.view === 'map';
+          document.querySelector('.market-list-view').style.display = showMap ? 'none' : '';
+          document.querySelector('.market-map-view').style.display = showMap ? '' : 'none';
+          if (showMap && !mapInitialized) {
+            mapInitialized = true;
+            renderMap('market-map', listings, hashBase);
+          }
+        });
       });
     };
 

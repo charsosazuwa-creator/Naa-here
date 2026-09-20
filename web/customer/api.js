@@ -116,6 +116,10 @@ const Api = {
   // bypasses apiRequest's JSON body handling: it's multipart, not JSON.
   searchListings: (query) => apiRequest(`/discover/listings${query ? `?${query}` : ''}`),
   getPublicListing: (listingId) => apiRequest(`/discover/listings/${listingId}`),
+  // US-005/US-006: Google Places search and AI natural-language search,
+  // both public (no sign-in required to browse the marketplace).
+  searchGoogle: (query) => apiRequest(`/discover/google${query ? `?${query}` : ''}`),
+  aiSearch: (payload) => apiRequest('/discover/ai-search', { method: 'POST', body: payload }),
   listMyListings: () => apiRequest('/listings/mine', { auth: true }),
   createListing: (payload) => apiRequest('/listings', { method: 'POST', body: payload, auth: true }),
   updateListing: (listingId, payload) => apiRequest(`/listings/${listingId}`, { method: 'PATCH', body: payload, auth: true }),

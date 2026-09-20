@@ -124,3 +124,18 @@ services:
         sync: false
       - key: FACEBOOK_CLIENT_SECRET
         sync: false
+      # US-005: Google Places search. Optional — leaving this unset
+      # makes the marketplace's "Nearby on Google" results section show
+      # a "not set up yet" message instead of failing. Get a key from
+      # Google Cloud Console (APIs & Services > Credentials), with the
+      # "Places API" enabled for it, then restrict the key to that API
+      # before pasting it in here via the Render dashboard.
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
+      # US-006/US-007: natural-language AI search. Optional — leaving
+      # this unset makes AI search fall back to plain keyword search.
+      # Get a key from console.anthropic.com (Settings > API keys).
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-haiku-4-5-20251001

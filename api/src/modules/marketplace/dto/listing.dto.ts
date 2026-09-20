@@ -1,4 +1,5 @@
-import { IsIn, IsInt, IsOptional, IsString, Min, MinLength, ValidateIf } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength, ValidateIf } from 'class-validator';
 
 const LISTING_TYPES = ['product', 'service', 'invention'] as const;
 const PRICE_TYPES = ['fixed', 'contact', 'negotiable', 'starting_from'] as const;
@@ -45,6 +46,22 @@ export class CreateListingDto {
   @IsOptional()
   @IsString()
   locationText?: string;
+
+  // Optional pin for map/distance search (US-004/US-009). Filled in by
+  // the "use my current location" button on the listing form (browser
+  // geolocation), never required — a listing with no coordinates just
+  // never appears in a distance-sorted or radius-limited search.
+  @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude?: number;
 
   @IsIn(CONTACT_METHODS)
   contactMethod!: 'phone' | 'email' | 'whatsapp';
@@ -102,6 +119,18 @@ export class UpdateListingDto {
   locationText?: string;
 
   @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude?: number;
+
+  @IsOptional()
   @IsIn(CONTACT_METHODS)
   contactMethod?: 'phone' | 'email' | 'whatsapp';
 
@@ -119,6 +148,8 @@ export class DecideListingDto {
   @IsString()
   reason?: string;
 }
+
+const SORT_OPTIONS = ['relevance', 'distance', 'price_asc', 'price_desc', 'newest'] as const;
 
 export class DiscoverListingsQueryDto {
   @IsOptional()
@@ -140,4 +171,106 @@ export class DiscoverListingsQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  // US-008: price-range filter. Query params arrive as strings, so
+  // @Type(() => Number) does the string->number conversion (ValidationPipe's
+  // global transform:true alone doesn't do implicit primitive conversion).
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minPrice?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  maxPrice?: number;
+
+  // US-004/US-009: customer's current position, for distance filtering/
+  // sorting. Both must be present together for either to take effect
+  // (ListingService.search checks this, not the DTO).
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  lat?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  lng?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(500)
+  radiusKm?: number;
+
+  @IsOptional()
+  @IsIn(SORT_OPTIONS)
+  sort?: 'relevance' | 'distance' | 'price_asc' | 'price_desc' | 'newest';
+}
+
+// US-005: Google Places search, alongside (not instead of) platform
+// listings. Query params, so numeric fields go through @Type(() =>
+// Number) same as DiscoverListingsQueryDto above.
+export class GooglePlacesQueryDto {
+  @IsOptional()
+  @IsString()
+  query?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  lat?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  lng?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(500)
+  radiusKm?: number;
+}
+
+// US-006: natural-language AI search. A POST body (not a GET query)
+// since the free-text request can be long and shouldn't sit in a URL.
+export class AiSearchQueryDto {
+  @IsString()
+  @MinLength(1)
+  query!: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  lat?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  lng?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(500)
+  radiusKm?: number;
 }
