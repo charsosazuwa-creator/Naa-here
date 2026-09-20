@@ -90,17 +90,37 @@ export class GroupService {
   ) {}
 
   private async assertEligible(userId: string): Promise<void> {
-    const [eligible] = await this.db.query<{ ok: boolean }>(
-      `SELECT true AS ok
-       FROM membership m
-       JOIN role r ON r.id = m.role_id
-       JOIN tenant t ON t.id = m.tenant_id
-       WHERE m.user_id = $1 AND m.status = 'active' AND r.code IN ('owner', 'staff', 'artisan', 'host')
-         AND EXISTS (SELECT 1 FROM verification_submission vs WHERE vs.tenant_id = t.id AND vs.status = 'approved')
-       LIMIT 1`,
-      [userId],
+    // `membership` has RLS (migration 001) that only lets a plain
+    // this.db.query() see rows once app.tenant_id is set -- which we
+    // don't have yet here, that's the whole point of this check. Run
+    // inside withUser() instead so the self-scoped policy from
+    // migration 007 (`membership_visible_to_self`) applies.
+    //
+    // Checking `tenant.verification_status = 'verified'` rather than
+    // joining verification_submission directly sidesteps the same
+    // problem there: verification_submission's RLS (migration 002)
+    // only matches a specific app.tenant_id or a platform-reviewer
+    // role (migration 010), neither of which is in scope for an
+    // ordinary member checking their own tenant. `tenant` itself has
+    // no RLS (see migration 010's note -- discovery/browse depends on
+    // it being globally readable), and verification.service.ts's
+    // decide() already keeps this column in sync with the submission
+    // it was derived from, so it's an equivalent, RLS-safe check.
+    const rows = await this.db.withUser(userId, (client) =>
+      client
+        .query(
+          `SELECT true AS ok
+           FROM membership m
+           JOIN role r ON r.id = m.role_id
+           JOIN tenant t ON t.id = m.tenant_id
+           WHERE m.user_id = $1 AND m.status = 'active' AND r.code IN ('owner', 'staff', 'artisan', 'host')
+             AND t.verification_status = 'verified'
+           LIMIT 1`,
+          [userId],
+        )
+        .then((r) => r.rows),
     );
-    if (!eligible) {
+    if (!rows.length) {
       throw new ForbiddenException(
         'Community groups are for verified Service Providers and Business Owners. Complete business verification first.',
       );
