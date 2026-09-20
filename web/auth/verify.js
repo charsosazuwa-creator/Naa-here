@@ -44,7 +44,7 @@
     alertBox.hidden = true;
     try {
       await AuthApi.resendVerification({ userId, purpose });
-      showSuccess('A new code has been sent (check the API server log).');
+      showSuccess('A new code has been sent to your email or phone.');
     } catch (err) {
       showError(err.message);
     }
