@@ -34,7 +34,7 @@ type UserRow = {
   id: string;
   email: string | null;
   phone: string | null;
-  password_hash: string;
+  password_hash: string | null;
   full_name: string;
   preferred_language: string;
   status: string;
@@ -139,7 +139,13 @@ export class AuthService {
       throw new ForbiddenException('This account is temporarily locked. Try again later.');
     }
 
-    const passwordOk = await verifyPassword(user.password_hash, password);
+    // An OAuth-only account (see oauth.service.ts) has no
+    // password_hash at all — argon2.verify() throws on a non-hash
+    // string rather than returning false, so this has to be checked
+    // explicitly instead of falling through to verifyPassword. Same
+    // generic failure as a wrong password: this must not confirm or
+    // deny that the account exists as OAuth-only.
+    const passwordOk = user.password_hash ? await verifyPassword(user.password_hash, password) : false;
     if (!passwordOk) {
       await this.registerFailedLogin(user);
       throw genericFailure();

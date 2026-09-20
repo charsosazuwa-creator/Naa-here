@@ -94,3 +94,33 @@ services:
       # next deploy/restart.
       - key: PLATFORM_ADMIN_EMAILS
         sync: false
+      # This service's own public URL, e.g.
+      # https://naa-here-app.onrender.com (no trailing slash). Used to
+      # build the OAuth redirect_uri Google/Facebook send users back
+      # to, and the final redirect back into the web app once a
+      # Google/Facebook sign-in completes (see
+      # api/src/modules/identity/oauth.*). Fill in via the Render
+      # dashboard once you know this service's actual .onrender.com
+      # URL (or your custom domain) — it isn't known until the first
+      # deploy.
+      - key: PUBLIC_BASE_URL
+        sync: false
+      # "Sign in with Google" / "Sign in with Facebook". Both are
+      # optional: leaving a provider's clientId/clientSecret unset just
+      # makes its "Continue with ..." button show a
+      # "not set up yet" message instead of failing at build/deploy
+      # time. Get these from Google Cloud Console (APIs & Services >
+      # Credentials > OAuth client ID, type "Web application") and
+      # Facebook for Developers (an app with the Facebook Login
+      # product added) — the exact redirect URI to register with each
+      # is PUBLIC_BASE_URL + /v1/auth/google/callback (or
+      # /v1/auth/facebook/callback). Set via the Render dashboard, not
+      # here, so neither secret ends up committed to the repo.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: FACEBOOK_CLIENT_ID
+        sync: false
+      - key: FACEBOOK_CLIENT_SECRET
+        sync: false

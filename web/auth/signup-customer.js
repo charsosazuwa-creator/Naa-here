@@ -58,3 +58,12 @@
       submitBtn.textContent = 'Create account';
     }
   });
+
+  renderOAuthButtons('oauth-buttons', () => {
+    alertBox.hidden = true;
+    if (!form.terms.checked) {
+      showError('You must agree to the Terms and Conditions to continue.');
+      return null;
+    }
+    return { role: 'customer' };
+  });

@@ -68,3 +68,23 @@
       submitBtn.textContent = 'Create account';
     }
   });
+
+  renderOAuthButtons('oauth-buttons', () => {
+    alertBox.hidden = true;
+    const businessName = form.businessName.value.trim();
+    const businessCategory = form.businessCategory.value;
+    const businessCountry = form.businessCountry.value;
+
+    if (!businessName || !businessCategory || !businessCountry) {
+      showError('Business name, category and country are required.');
+      return null;
+    }
+    if (!form.terms.checked) {
+      showError('You must agree to the Terms and Conditions to continue.');
+      return null;
+    }
+    return {
+      role: 'provider',
+      business: { name: businessName, category: businessCategory, countryCode: businessCountry },
+    };
+  });

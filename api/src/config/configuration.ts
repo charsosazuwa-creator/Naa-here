@@ -50,6 +50,23 @@ export interface AppConfig {
       fromName: string;
     };
   };
+  // This deployment's own public origin (e.g.
+  // https://naa-here-app.onrender.com), used only to build OAuth
+  // redirect_uri values and the final browser redirect back to the
+  // front end after a Google/Facebook sign-in completes (see
+  // oauth.service.ts). Falls back to localhost for local dev, where
+  // an OAuth provider is unlikely to be configured anyway.
+  publicBaseUrl: string;
+  // "Sign in with Google" / "Sign in with Facebook" (see
+  // modules/identity/oauth.*). Each provider's credentials come from
+  // its own developer console (Google Cloud Console / Facebook for
+  // Developers) and are optional: a provider whose clientId is empty
+  // simply has its authorize route return 501, so the rest of the API
+  // works unchanged before these are configured.
+  oauth: {
+    google: { clientId: string; clientSecret: string };
+    facebook: { clientId: string; clientSecret: string };
+  };
 }
 
 export default (): AppConfig => ({
@@ -83,6 +100,17 @@ export default (): AppConfig => ({
       apiKey: process.env.RESEND_API_KEY ?? '',
       fromAddress: process.env.EMAIL_FROM_ADDRESS ?? 'onboarding@resend.dev',
       fromName: process.env.EMAIL_FROM_NAME ?? 'Naa here',
+    },
+  },
+  publicBaseUrl: process.env.PUBLIC_BASE_URL ?? 'http://localhost:3000',
+  oauth: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID ?? '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+    },
+    facebook: {
+      clientId: process.env.FACEBOOK_CLIENT_ID ?? '',
+      clientSecret: process.env.FACEBOOK_CLIENT_SECRET ?? '',
     },
   },
 });

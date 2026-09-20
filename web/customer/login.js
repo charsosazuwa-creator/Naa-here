@@ -43,3 +43,5 @@
       submitBtn.textContent = 'Sign in';
     }
   });
+
+  renderOAuthButtons('oauth-buttons', () => ({ role: 'customer' }));

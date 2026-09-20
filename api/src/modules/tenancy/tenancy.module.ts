@@ -8,6 +8,10 @@ import { StaffService } from './staff.service';
 @Module({
   controllers: [TenancyController],
   providers: [TenancyService, BusinessService, LocationService, StaffService],
-  exports: [TenancyService],
+  // BusinessService is also exported: OAuthService (identity module)
+  // reuses it to create a tenant when a Google/Facebook sign-in carries
+  // provider-signup business details, the same way
+  // TenancyController.create() does for the password flow.
+  exports: [TenancyService, BusinessService],
 })
 export class TenancyModule {}

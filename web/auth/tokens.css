@@ -220,3 +220,64 @@ a.btn-link.secondary {
   font-size: 0.85rem;
   color: var(--color-text-muted);
 }
+
+/* "Continue with Google / Facebook" (oauth-buttons.js). */
+.oauth-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.oauth-divider::before,
+.oauth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.oauth-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.oauth-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.oauth-btn:hover { border-color: var(--color-primary); }
+.oauth-btn:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+.oauth-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.oauth-btn svg { flex: none; }
+
+.oauth-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  flex: none;
+}
+.oauth-btn-google .oauth-btn-icon { background: #4285f4; }
+.oauth-btn-facebook .oauth-btn-icon { background: #1877f2; }
