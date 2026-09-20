@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Naa here — Create your business account</title>
+<link rel="stylesheet" href="tokens.css" />
+</head>
+<body>
+<main class="card">
+  <img src="assets/logo.png" alt="Naa here" style="height:40px;display:block;margin-bottom:var(--space-3)" />
+  <h1>Create your business account</h1>
+  <p class="subtitle">List your services and start taking bookings and job requests.</p>
+
+  <div id="alert" class="alert error" role="alert" hidden></div>
+
+  <form id="signup-form" novalidate>
+    <div class="field">
+      <label for="fullName">Your full name</label>
+      <input id="fullName" name="fullName" type="text" autocomplete="name" required />
+    </div>
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" />
+      <div class="hint">Or use a phone number below instead — one of the two is required.</div>
+    </div>
+    <div class="field">
+      <label for="phone">Phone (E.164, e.g. +2348012345678)</label>
+      <input id="phone" name="phone" type="tel" autocomplete="tel" />
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8" />
+      <div class="hint">At least 8 characters, with letters and digits.</div>
+    </div>
+    <div class="field">
+      <label for="confirmPassword">Confirm password</label>
+      <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" required minlength="8" />
+    </div>
+
+    <div class="field">
+      <label for="businessName">Business name</label>
+      <input id="businessName" name="businessName" type="text" required />
+    </div>
+    <div class="field">
+      <label for="businessCategory">Business type / category</label>
+      <select id="businessCategory" name="businessCategory" required>
+        <option value="" disabled selected>Select a category</option>
+        <option value="barber_salon">Barber and salon</option>
+        <option value="accommodation">Accommodation</option>
+        <option value="artisan">Artisan and on-demand jobs</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="businessCountry">Business location — country</label>
+      <select id="businessCountry" name="businessCountry" required>
+        <option value="" disabled selected>Select a country</option>
+        <option value="NG">Nigeria</option>
+        <option value="KE">Kenya</option>
+        <option value="GH">Ghana</option>
+        <option value="ZA">South Africa</option>
+      </select>
+      <div class="hint">You can add specific locations and addresses once you're signed in.</div>
+    </div>
+
+    <div class="field-checkbox">
+      <input id="terms" name="terms" type="checkbox" required />
+      <label for="terms">I agree to the Terms and Conditions</label>
+    </div>
+    <button class="primary" type="submit" id="submit-btn">Create account</button>
+  </form>
+
+  <p class="links"><a href="signup.html">&larr; Choose a different account type</a></p>
+  <p class="links">Already have an account? <a href="signin.html">Sign in</a></p>
+</main>
+
+<script src="api.js"></script>
+<script src="signup-provider.js"></script>
+</body>
+</html>

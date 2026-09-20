@@ -160,3 +160,63 @@ a.btn-link.secondary {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* Account-type selection (signup.html) and select/checkbox fields
+   added for the Service Provider / Customer registration forms. */
+.field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 1rem;
+}
+.field select:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.field-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+.field-checkbox input { margin-top: 3px; }
+
+.account-type-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.account-type-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  color: var(--color-text);
+  text-decoration: none;
+  cursor: pointer;
+  font: inherit;
+  box-sizing: border-box;
+}
+.account-type-option:hover,
+.account-type-option:focus-visible {
+  border-color: var(--color-primary);
+  outline: none;
+}
+.account-type-option .option-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.account-type-option .option-desc {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}

@@ -30,8 +30,19 @@
 
     try {
       await AuthApi.verify({ userId, purpose, code: form.code.value.trim() });
+
+      // Route into the right app's own sign-in page, per the account
+      // type chosen back on signup.html (see signup-provider.js /
+      // signup-customer.js) -- each app keeps its own signed-in
+      // session, so verifying here doesn't sign anyone in anywhere.
+      const pendingType = sessionStorage.getItem('pendingSignupType');
+      const destination =
+        pendingType === 'provider' ? '../provider/login.html'
+        : pendingType === 'customer' ? '../customer/login.html'
+        : 'signin.html';
+
       showSuccess('Verified! Redirecting to sign in…');
-      setTimeout(() => (window.location.href = 'signin.html'), 1200);
+      setTimeout(() => (window.location.href = destination), 1200);
     } catch (err) {
       showError(err.message);
       submitBtn.disabled = false;

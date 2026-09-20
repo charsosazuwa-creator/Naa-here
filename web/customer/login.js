@@ -32,6 +32,10 @@
     try {
       const result = await Api.login(payload);
       setSession({ accessToken: result.accessToken, refreshToken: result.refreshToken, user: result.user });
+      // Leftover from ../auth/signup-customer.js's hand-off through
+      // verify.js -- nothing left to do with it on this side, just
+      // don't let it linger across sessions.
+      sessionStorage.removeItem('pendingSignupType');
       window.location.href = nextUrl();
     } catch (err) {
       showError(err.message);

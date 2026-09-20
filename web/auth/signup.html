@@ -10,36 +10,20 @@
 <main class="card">
   <img src="assets/logo.png" alt="Naa here" style="height:40px;display:block;margin-bottom:var(--space-3)" />
   <h1>Create your account</h1>
-  <p class="subtitle">Always free for Customers and Providers</p>
+  <p class="subtitle">Always free for Customers and Providers. How will you be using Naa here?</p>
 
-  <div id="alert" class="alert error" role="alert" hidden></div>
-
-  <form id="signup-form" novalidate>
-    <div class="field">
-      <label for="fullName">Full name</label>
-      <input id="fullName" name="fullName" type="text" autocomplete="name" required />
-    </div>
-    <div class="field">
-      <label for="email">Email</label>
-      <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" />
-      <div class="hint">Or use a phone number below instead — one of the two is required.</div>
-    </div>
-    <div class="field">
-      <label for="phone">Phone (E.164, e.g. +2348012345678)</label>
-      <input id="phone" name="phone" type="tel" autocomplete="tel" />
-    </div>
-    <div class="field">
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8" />
-      <div class="hint">At least 8 characters, with letters and digits.</div>
-    </div>
-    <button class="primary" type="submit" id="submit-btn">Create account</button>
-  </form>
+  <div class="account-type-options">
+    <a class="account-type-option" href="signup-provider.html">
+      <div class="option-title">I am a Service Provider</div>
+      <div class="option-desc">I run a business — a salon, artisan trade, or accommodation — and want to list my services.</div>
+    </a>
+    <a class="account-type-option" href="signup-customer.html">
+      <div class="option-title">I am a Customer</div>
+      <div class="option-desc">I want to browse, book, or request services from local businesses.</div>
+    </a>
+  </div>
 
   <p class="links">Already have an account? <a href="signin.html">Sign in</a></p>
 </main>
-
-<script src="api.js"></script>
-<script src="signup.js"></script>
 </body>
 </html>
