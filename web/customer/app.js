@@ -235,6 +235,22 @@ views.service = async (params, routeParams) => {
         <button class="primary" type="submit" id="book-btn">${isSignedIn() ? 'Book now' : 'Sign in to book'}</button>
       </form>
     </div>
+
+    <div class="panel">
+      <h2>Request a custom job</h2>
+      <p style="color:var(--color-text-muted);font-size:0.85rem;margin-bottom:var(--space-2)">
+        Not sure of the exact time or price yet? Describe what you need and the business will send you a quote —
+        you can accept it from <a href="#/job-requests">Job requests</a> once it arrives.
+      </p>
+      <div id="job-request-alert" class="alert error" role="alert" hidden></div>
+      <form id="job-request-form" novalidate>
+        <div class="field">
+          <label for="jr-description">What do you need done?</label>
+          <textarea id="jr-description" rows="3" required></textarea>
+        </div>
+        <button class="primary" type="submit" id="job-request-btn">${isSignedIn() ? 'Send request' : 'Sign in to request'}</button>
+      </form>
+    </div>
   `;
 
   const after = () => {
@@ -247,6 +263,34 @@ views.service = async (params, routeParams) => {
         endInput.value = toLocalInputValue(new Date(start.getTime() + service.durationMinutes * 60000));
       });
     }
+
+    document.getElementById('job-request-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      if (!isSignedIn()) {
+        window.location.href = `login.html?next=${encodeURIComponent(`#/service/${serviceId}`)}`;
+        return;
+      }
+
+      const alertBox = document.getElementById('job-request-alert');
+      const btn = document.getElementById('job-request-btn');
+      alertBox.hidden = true;
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+
+      try {
+        await Api.createJobRequest(service.tenantId, {
+          serviceId: service.id,
+          description: document.getElementById('jr-description').value.trim(),
+        });
+        window.location.hash = '#/job-requests';
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.hidden = false;
+        btn.disabled = false;
+        btn.textContent = 'Send request';
+      }
+    });
 
     document.getElementById('book-form').addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -349,6 +393,86 @@ views.bookings = async () => {
   };
 
   return { title: 'My bookings', body, after };
+};
+
+// ---------------------------------------------------------------------
+// Job requests ("mine"): the artisan flow's customer-facing half —
+// see job.service.ts's listMine/accept. Status moves
+// requested -> quoted -> accepted (creates a booking, visible under
+// My bookings) or declined by the business.
+// ---------------------------------------------------------------------
+views['job-requests'] = async () => {
+  if (!isSignedIn()) {
+    window.location.href = `login.html?next=${encodeURIComponent('#/job-requests')}`;
+    return { title: 'Job requests', body: '' };
+  }
+
+  let requests;
+  try {
+    requests = await Api.myJobRequests();
+  } catch (err) {
+    return { title: 'Job requests', body: `<div class="alert error" role="alert">${escapeHtml(err.message)}</div>` };
+  }
+
+  const body = `
+    <h1 class="page-title">Job requests</h1>
+    <div id="jr-list-alert" class="alert error" role="alert" hidden></div>
+    <div class="panel">
+      ${
+        requests.length === 0
+          ? '<p class="empty-state">No job requests yet — open a service and use "Request a custom job" to send one.</p>'
+          : `<table class="data-table">
+        <thead>
+          <tr><th>Service</th><th>Business</th><th>Description</th><th>Status</th><th>Quote</th><th></th></tr>
+        </thead>
+        <tbody>
+          ${requests
+            .map((r) => {
+              const q = r.quotation;
+              const quoteText = q
+                ? `${formatMoney(q.amountMinorUnits, q.currencyCode)}<br><span style="color:var(--color-text-muted);font-size:0.8rem">${formatDateTime(q.proposedStartsAt)} – ${formatDateTime(q.proposedEndsAt)}</span>`
+                : '—';
+              const canAccept = r.status === 'quoted' && q;
+              return `
+              <tr data-job-request-id="${r.id}" data-tenant-id="${r.tenantId}">
+                <td><a href="#/service/${r.serviceId}">${escapeHtml(r.serviceName)}</a></td>
+                <td>${escapeHtml(r.tenantName)}</td>
+                <td>${escapeHtml(r.description)}</td>
+                <td>${badge(r.status)}</td>
+                <td>${quoteText}</td>
+                <td>${canAccept ? '<button class="small primary" data-action="accept-quote">Accept quote</button>' : ''}</td>
+              </tr>`;
+            })
+            .join('')}
+        </tbody>
+      </table>`
+      }
+    </div>
+  `;
+
+  const after = () => {
+    document.querySelectorAll('[data-action="accept-quote"]').forEach((btn) => {
+      btn.addEventListener('click', () =>
+        runAction(btn, async () => {
+          const row = btn.closest('tr');
+          const { jobRequestId, tenantId } = row.dataset;
+          if (!window.confirm('Accept this quote? This will create a booking for the proposed time.')) {
+            throw new Error('__cancelled__');
+          }
+          try {
+            await Api.acceptJobRequestQuote(tenantId, jobRequestId);
+          } catch (err) {
+            document.getElementById('jr-list-alert').textContent = err.message;
+            document.getElementById('jr-list-alert').hidden = false;
+            throw new Error('__cancelled__');
+          }
+          window.location.hash = '#/bookings';
+        }),
+      );
+    });
+  };
+
+  return { title: 'Job requests', body, after };
 };
 
 // ---------------------------------------------------------------------

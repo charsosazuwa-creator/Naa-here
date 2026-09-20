@@ -49,3 +49,19 @@ export class JobController {
     return this.jobs.decline(tenantId, jobRequestId, dto.reason);
   }
 }
+
+/**
+ * Cross-tenant "mine" listing, same split as BookingController's
+ * `bookings/mine`: a customer isn't scoped to one tenant, so this
+ * can't live under the `tenants/:tenantId/job-requests` prefix above.
+ */
+@Controller('job-requests')
+@UseGuards(JwtAuthGuard)
+export class JobRequestsMineController {
+  constructor(private readonly jobs: JobService) {}
+
+  @Get('mine')
+  listMine(@CurrentUserId() userId: string) {
+    return this.jobs.listMine(userId);
+  }
+}

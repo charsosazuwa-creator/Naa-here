@@ -22,6 +22,25 @@ export interface QuotationRecord {
   validUntil: string;
 }
 
+export interface CustomerJobRequestView {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  serviceId: string;
+  serviceName: string;
+  description: string;
+  status: JobRequestRecord['status'];
+  createdAt: string;
+  quotation: {
+    id: string;
+    amountMinorUnits: number;
+    currencyCode: string;
+    proposedStartsAt: string;
+    proposedEndsAt: string;
+    validUntil: string;
+  } | null;
+}
+
 const POSTGRES_EXCLUSION_VIOLATION = '23P01';
 
 /**
@@ -225,6 +244,35 @@ export class JobService {
     });
   }
 
+  /**
+   * Cross-tenant, same pattern as BookingService.listMine: runs under
+   * `withUser` (no app.tenant_id set) so RLS's owning-customer branch
+   * is what makes each row visible, joined out to the tenant/service
+   * names and the latest quotation so the customer app can render a
+   * useful list without N follow-up requests.
+   */
+  async listMine(customerUserId: string): Promise<CustomerJobRequestView[]> {
+    return this.db.withUser(customerUserId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT jr.id, jr.tenant_id, t.name AS tenant_name, jr.service_id, s.name AS service_name,
+                jr.description, jr.status, jr.created_at,
+                q.id AS quotation_id, q.amount_minor_units, q.currency_code,
+                q.proposed_starts_at, q.proposed_ends_at, q.valid_until
+         FROM job_request jr
+         JOIN customer_profile cp ON cp.id = jr.customer_id
+         JOIN tenant t ON t.id = jr.tenant_id
+         JOIN service s ON s.id = jr.service_id
+         LEFT JOIN LATERAL (
+           SELECT * FROM quotation WHERE quotation.job_request_id = jr.id ORDER BY created_at DESC LIMIT 1
+         ) q ON true
+         WHERE cp.linked_user_id = $1
+         ORDER BY jr.created_at DESC`,
+        [customerUserId],
+      );
+      return rows.map(toCustomerJobRequestView);
+    });
+  }
+
   async listForTenant(tenantId: string): Promise<JobRequestRecord[]> {
     return this.db.withTenant(tenantId, async (client) => {
       const { rows } = await client.query(
@@ -243,6 +291,29 @@ function toJobRequest(row: Record<string, unknown>): JobRequestRecord {
     customerId: row.customer_id as string,
     description: row.description as string,
     status: row.status as JobRequestRecord['status'],
+  };
+}
+
+function toCustomerJobRequestView(row: Record<string, unknown>): CustomerJobRequestView {
+  return {
+    id: row.id as string,
+    tenantId: row.tenant_id as string,
+    tenantName: row.tenant_name as string,
+    serviceId: row.service_id as string,
+    serviceName: row.service_name as string,
+    description: row.description as string,
+    status: row.status as JobRequestRecord['status'],
+    createdAt: row.created_at as string,
+    quotation: row.quotation_id
+      ? {
+          id: row.quotation_id as string,
+          amountMinorUnits: row.amount_minor_units as number,
+          currencyCode: row.currency_code as string,
+          proposedStartsAt: row.proposed_starts_at as string,
+          proposedEndsAt: row.proposed_ends_at as string,
+          validUntil: row.valid_until as string,
+        }
+      : null,
   };
 }
 

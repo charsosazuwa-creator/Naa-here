@@ -97,4 +97,14 @@ const Api = {
   myBookings: () => apiRequest('/bookings/mine', { auth: true }),
   cancelBooking: (bookingId, reason) =>
     apiRequest(`/bookings/${bookingId}/cancel`, { method: 'PATCH', body: { reason }, auth: true }),
+
+  // job requests (the "artisan flow" — see job.controller.ts): a
+  // customer describes a job against a specific service, the
+  // business quotes a price and schedule, the customer accepts it
+  // (creating a booking) from their own cross-tenant "mine" list.
+  createJobRequest: (tenantId, payload) =>
+    apiRequest(`/tenants/${tenantId}/job-requests`, { method: 'POST', body: payload, auth: true }),
+  myJobRequests: () => apiRequest('/job-requests/mine', { auth: true }),
+  acceptJobRequestQuote: (tenantId, jobRequestId) =>
+    apiRequest(`/tenants/${tenantId}/job-requests/${jobRequestId}/accept`, { method: 'POST', auth: true }),
 };
