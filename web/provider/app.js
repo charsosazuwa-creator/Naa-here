@@ -654,9 +654,10 @@ let currentBlockedTenantId = null;
 // behind it already worked end-to-end.
 // ---------------------------------------------------------------------
 views.customers = async () => {
-  const [customers, tasks] = await Promise.all([
+  const [customers, tasks, invitations] = await Promise.all([
     Api.listCustomers(state.tenantId),
     Api.listTasks(state.tenantId),
+    Api.listCustomerInvitations(state.tenantId),
   ]);
 
   const customerNameById = new Map(customers.map((c) => [c.id, c.fullName]));
@@ -705,6 +706,29 @@ views.customers = async () => {
 
   const customerOptions = customers.map((c) => `<option value="${c.id}">${escapeHtml(c.fullName)}</option>`).join('');
 
+  const invitationRows = invitations.length
+    ? invitations
+        .map(
+          (inv) => `
+      <tr>
+        <td>${escapeHtml(inv.invitedEmail)}</td>
+        <td>${badge(inv.status)}</td>
+        <td>${formatDate(inv.expiresAt)}</td>
+        <td>
+          <div class="actions-row">
+            ${
+              inv.status === 'pending'
+                ? `<button class="small" data-action="invite-resend" data-id="${inv.id}">Resend</button>
+                   <button class="small danger" data-action="invite-cancel" data-id="${inv.id}">Cancel</button>`
+                : '—'
+            }
+          </div>
+        </td>
+      </tr>`,
+        )
+        .join('')
+    : '<tr class="empty-row"><td colspan="4">No customer invitations yet.</td></tr>';
+
   const body = `
     <h1 class="page-title">Customers</h1>
 
@@ -727,6 +751,23 @@ views.customers = async () => {
     </div>
 
     <div id="notes-panel"></div>
+
+    <div class="panel">
+      <h2>Invite a customer</h2>
+      <p style="color:var(--color-text-muted);font-size:0.85rem;margin-top:-8px">
+        Works whether or not they already have a Naa here account — they'll get an email either way, with the
+        right next step (sign in, or create an account first).
+      </p>
+      <div id="customer-invite-alert" class="alert error" role="alert" hidden></div>
+      <form id="invite-customer-form" novalidate class="inline-form">
+        <div class="field"><label for="ci-email">Email</label><input id="ci-email" type="email" required /></div>
+        <button class="primary" type="submit">Send invitation</button>
+      </form>
+      <table class="data-table">
+        <thead><tr><th>Email</th><th>Status</th><th>Expires</th><th></th></tr></thead>
+        <tbody>${invitationRows}</tbody>
+      </table>
+    </div>
 
     <div class="panel">
       <h2>Tasks</h2>
@@ -793,6 +834,33 @@ views.customers = async () => {
         alertBox.hidden = false;
       }
     });
+
+    document.getElementById('invite-customer-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const alertBox = document.getElementById('customer-invite-alert');
+      alertBox.hidden = true;
+      const emailInput = document.getElementById('ci-email');
+      const submitBtn = event.target.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      try {
+        await Api.inviteCustomer(state.tenantId, { email: emailInput.value.trim() });
+        renderRoute();
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.hidden = false;
+        submitBtn.disabled = false;
+      }
+    });
+
+    document.querySelectorAll('[data-action="invite-resend"]').forEach((btn) =>
+      btn.addEventListener('click', () => runAction(btn, () => Api.resendCustomerInvitation(state.tenantId, btn.dataset.id))),
+    );
+    document.querySelectorAll('[data-action="invite-cancel"]').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        if (!window.confirm('Cancel this invitation?')) return;
+        runAction(btn, () => Api.cancelCustomerInvitation(state.tenantId, btn.dataset.id));
+      }),
+    );
   };
 
   return { title: 'Customers', body, after };

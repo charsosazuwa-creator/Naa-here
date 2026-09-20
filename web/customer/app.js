@@ -594,6 +594,113 @@ views['job-requests'] = async () => {
 };
 
 // ---------------------------------------------------------------------
+// Customer invitations (User Story 6): landed on from an emailed link
+// via login.html?next=%23%2Finvite%2FTOKEN or, for a brand-new
+// account, straight after ../auth/verify.html -- see
+// ../auth/signup-customer.js and ../auth/verify.js for the other half
+// of this hand-off.
+// ---------------------------------------------------------------------
+views.invite = async (params, routeParams) => {
+  const token = routeParams[0];
+  if (!token) {
+    return { title: 'Invitation', body: '<div class="alert error" role="alert">Missing invitation link.</div>' };
+  }
+
+  let preview;
+  try {
+    preview = await Api.previewInvitation(token);
+  } catch (err) {
+    return { title: 'Invitation', body: `<div class="alert error" role="alert">${escapeHtml(err.message)}</div>` };
+  }
+
+  const signedIn = isSignedIn();
+  const isPending = preview.status === 'pending';
+
+  const statusNote = !isPending
+    ? `<div class="alert error" role="alert">This invitation is ${escapeHtml(preview.status)}${
+        preview.status === 'expired' ? ' — ask the business to send a new one.' : '.'
+      }</div>`
+    : '';
+
+  const actions = !isPending
+    ? ''
+    : signedIn
+      ? `
+      <div id="invite-alert" class="alert error" role="alert" hidden></div>
+      <div class="actions-row">
+        <button class="primary" id="invite-accept-btn" style="width:auto;padding:11px 16px">Accept invitation</button>
+        <button class="btn-plain" id="invite-decline-btn">Decline</button>
+      </div>`
+      : `
+      <p style="color:var(--color-text-muted);font-size:0.85rem">
+        Sign in with <strong>${escapeHtml(preview.invitedEmail)}</strong> to accept, or create an account with that
+        email if you're new here.
+      </p>
+      <div class="actions-row">
+        <a href="login.html?next=${encodeURIComponent(`#/invite/${token}`)}"
+           style="display:inline-block;padding:11px 16px;border-radius:8px;background:var(--color-primary);color:#fff;font-weight:600;text-decoration:none;font-size:0.9rem">Sign in to accept</a>
+        <a class="btn-plain" style="display:inline-block;text-decoration:none"
+           href="../auth/signup-customer.html?${new URLSearchParams({ email: preview.invitedEmail, invite: token }).toString()}">Create an account</a>
+      </div>`;
+
+  const body = `
+    <div class="panel" style="max-width:480px;margin:0 auto">
+      <h1 class="page-title">Invitation from ${escapeHtml(preview.businessName)}</h1>
+      <p style="color:var(--color-text-muted)">
+        ${escapeHtml(preview.businessName)} invited <strong>${escapeHtml(preview.invitedEmail)}</strong> to connect on Naa here.
+      </p>
+      ${statusNote}
+      ${actions}
+    </div>
+  `;
+
+  const after = () => {
+    const acceptBtn = document.getElementById('invite-accept-btn');
+    const declineBtn = document.getElementById('invite-decline-btn');
+    const alertBox = document.getElementById('invite-alert');
+    if (acceptBtn) {
+      acceptBtn.addEventListener('click', async () => {
+        acceptBtn.disabled = true;
+        if (declineBtn) declineBtn.disabled = true;
+        if (alertBox) alertBox.hidden = true;
+        try {
+          await Api.acceptInvitation(token);
+          window.location.hash = '#/bookings';
+        } catch (err) {
+          if (alertBox) {
+            alertBox.textContent = err.message;
+            alertBox.hidden = false;
+          }
+          acceptBtn.disabled = false;
+          if (declineBtn) declineBtn.disabled = false;
+        }
+      });
+    }
+    if (declineBtn) {
+      declineBtn.addEventListener('click', async () => {
+        if (!window.confirm('Decline this invitation?')) return;
+        acceptBtn.disabled = true;
+        declineBtn.disabled = true;
+        if (alertBox) alertBox.hidden = true;
+        try {
+          await Api.declineInvitation(token);
+          renderRoute();
+        } catch (err) {
+          if (alertBox) {
+            alertBox.textContent = err.message;
+            alertBox.hidden = false;
+          }
+          acceptBtn.disabled = false;
+          declineBtn.disabled = false;
+        }
+      });
+    }
+  };
+
+  return { title: 'Invitation', body, after };
+};
+
+// ---------------------------------------------------------------------
 // Shell: routing.
 // ---------------------------------------------------------------------
 

@@ -97,6 +97,16 @@ const Api = {
   listStaff: (tenantId) => apiRequest(`/tenants/${tenantId}/staff`),
   inviteStaff: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/staff`, { method: 'POST', body: payload }),
 
+  // customer invitations (User Story 6) -- separate from staff invites:
+  // these can reach someone who has no account yet, and never grant
+  // any tenant membership/role.
+  listCustomerInvitations: (tenantId) => apiRequest(`/tenants/${tenantId}/customer-invitations`),
+  inviteCustomer: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/customer-invitations`, { method: 'POST', body: payload }),
+  resendCustomerInvitation: (tenantId, invitationId) =>
+    apiRequest(`/tenants/${tenantId}/customer-invitations/${invitationId}/resend`, { method: 'POST' }),
+  cancelCustomerInvitation: (tenantId, invitationId) =>
+    apiRequest(`/tenants/${tenantId}/customer-invitations/${invitationId}/cancel`, { method: 'POST' }),
+
   // verification
   listVerification: (tenantId) => apiRequest(`/tenants/${tenantId}/verification`),
   submitVerification: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/verification`, { method: 'POST', body: payload }),

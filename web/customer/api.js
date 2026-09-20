@@ -185,4 +185,11 @@ const Api = {
     }
     return data;
   },
+  // customer invitations (User Story 6): previewing is public (no
+  // sign-in yet, possibly no account yet); accept/decline need a
+  // signed-in customer -- apiRequest's auth:true here is what sends an
+  // unauthenticated visitor to login.html?next=... and back.
+  previewInvitation: (token) => apiRequest(`/customer-invitations/${encodeURIComponent(token)}`),
+  acceptInvitation: (token) => apiRequest(`/customer-invitations/${encodeURIComponent(token)}/accept`, { method: 'POST', auth: true }),
+  declineInvitation: (token) => apiRequest(`/customer-invitations/${encodeURIComponent(token)}/decline`, { method: 'POST', auth: true }),
 };

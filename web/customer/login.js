@@ -1,11 +1,15 @@
-  if (isSignedIn()) {
-    window.location.href = 'index.html';
-  }
-
   function nextUrl() {
     const params = new URLSearchParams(window.location.search);
     const next = params.get('next');
     return next ? `index.html${next}` : 'index.html';
+  }
+
+  // AC (User Story 6): an existing customer who is already signed in
+  // and follows an "existing account" invitation link must land on
+  // that invitation, not lose it here -- this used to unconditionally
+  // send them to index.html with no `next`.
+  if (isSignedIn()) {
+    window.location.href = nextUrl();
   }
 
   const form = document.getElementById('login-form');

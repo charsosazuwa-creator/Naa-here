@@ -2,6 +2,20 @@
   const alertBox = document.getElementById('alert');
   const submitBtn = document.getElementById('submit-btn');
 
+  // User Story 6: a Customer-invite email links here as
+  // signup-customer.html?email=...&invite=TOKEN for someone who
+  // doesn't have an account yet (Scenario B). Prefilling the email
+  // keeps the invited address from drifting to a different one during
+  // registration (AC8); the token rides along to verify.html and from
+  // there to ../customer/login.html?next=... so acceptance can finish
+  // once the account exists (see verify.js).
+  const inviteParams = new URLSearchParams(window.location.search);
+  const invitedEmail = inviteParams.get('email');
+  const invitationToken = inviteParams.get('invite');
+  if (invitedEmail) {
+    form.email.value = invitedEmail;
+  }
+
   function showError(message) {
     alertBox.textContent = message;
     alertBox.className = 'alert error';
@@ -51,6 +65,9 @@
 
       const purpose = email ? 'email_verify' : 'phone_verify';
       const params = new URLSearchParams({ userId: result.userId, purpose });
+      if (invitationToken) {
+        params.set('invite', invitationToken);
+      }
       window.location.href = `verify.html?${params.toString()}`;
     } catch (err) {
       showError(err.message);

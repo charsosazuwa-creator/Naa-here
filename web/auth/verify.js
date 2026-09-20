@@ -1,6 +1,9 @@
   const params = new URLSearchParams(window.location.search);
   const userId = params.get('userId');
   const purpose = params.get('purpose') || 'email_verify';
+  // User Story 6: carried through from signup-customer.js when this
+  // signup started from a Customer-invite email link.
+  const invitationToken = params.get('invite');
 
   const form = document.getElementById('verify-form');
   const alertBox = document.getElementById('alert');
@@ -36,9 +39,12 @@
       // signup-customer.js) -- each app keeps its own signed-in
       // session, so verifying here doesn't sign anyone in anywhere.
       const pendingType = sessionStorage.getItem('pendingSignupType');
+      const customerLoginDestination = invitationToken
+        ? `../customer/login.html?next=${encodeURIComponent(`#/invite/${invitationToken}`)}`
+        : '../customer/login.html';
       const destination =
         pendingType === 'provider' ? '../provider/login.html'
-        : pendingType === 'customer' ? '../customer/login.html'
+        : pendingType === 'customer' ? customerLoginDestination
         : 'signin.html';
 
       showSuccess('Verified! Redirecting to sign in…');
