@@ -28,6 +28,7 @@ const NAV_ITEMS = [
   { key: 'services', label: 'Services' },
   { key: 'availability', label: 'Availability' },
   { key: 'staff', label: 'Staff' },
+  { key: 'customers', label: 'Customers' },
   { key: 'bookings', label: 'Bookings' },
   { key: 'job-requests', label: 'Job requests' },
   { key: 'disputes', label: 'Disputes' },
@@ -638,6 +639,195 @@ views.availability = async () => {
   return { title: 'Availability', body, after };
 };
 let currentBlockedTenantId = null;
+
+// ---------------------------------------------------------------------
+// Customers (CRM): the backend (crm.controller.ts / crm.service.ts —
+// customer_profile, customer_note, customer_task) has always fully
+// existed; this view was simply never built, so a provider had no way
+// to see, note, or task-track a single customer even though the API
+// behind it already worked end-to-end.
+// ---------------------------------------------------------------------
+views.customers = async () => {
+  const [customers, tasks] = await Promise.all([
+    Api.listCustomers(state.tenantId),
+    Api.listTasks(state.tenantId),
+  ]);
+
+  const customerNameById = new Map(customers.map((c) => [c.id, c.fullName]));
+
+  const customerRows = customers.length
+    ? customers
+        .map(
+          (c) => `
+      <tr>
+        <td>${escapeHtml(c.fullName)}</td>
+        <td>${escapeHtml(c.phone ?? '—')}</td>
+        <td>${escapeHtml(c.email ?? '—')}</td>
+        <td>
+          <div class="actions-row">
+            <button class="small" data-action="notes" data-id="${c.id}" data-name="${escapeHtml(c.fullName)}">Notes</button>
+          </div>
+        </td>
+      </tr>`,
+        )
+        .join('')
+    : '<tr class="empty-row"><td colspan="4">No customers yet.</td></tr>';
+
+  const taskRows = tasks.length
+    ? tasks
+        .map(
+          (t) => `
+      <tr>
+        <td>${escapeHtml(t.title)}</td>
+        <td>${t.customerId ? escapeHtml(customerNameById.get(t.customerId) ?? 'Unknown') : '—'}</td>
+        <td>${formatDate(t.dueAt)}</td>
+        <td>${badge(t.status)}</td>
+        <td>
+          <div class="actions-row">
+            ${
+              t.status === 'open'
+                ? `<button class="small primary" data-action="task-done" data-id="${t.id}">Mark done</button>
+                   <button class="small danger" data-action="task-cancel" data-id="${t.id}">Cancel</button>`
+                : '—'
+            }
+          </div>
+        </td>
+      </tr>`,
+        )
+        .join('')
+    : '<tr class="empty-row"><td colspan="5">No tasks yet.</td></tr>';
+
+  const customerOptions = customers.map((c) => `<option value="${c.id}">${escapeHtml(c.fullName)}</option>`).join('');
+
+  const body = `
+    <h1 class="page-title">Customers</h1>
+
+    <div class="panel">
+      <h2>Add a customer</h2>
+      <div id="customer-alert" class="alert error" role="alert" hidden></div>
+      <form id="customer-form" novalidate class="inline-form">
+        <div class="field"><label for="c-name">Full name</label><input id="c-name" required /></div>
+        <div class="field"><label for="c-phone">Phone</label><input id="c-phone" /></div>
+        <div class="field"><label for="c-email">Email</label><input id="c-email" type="email" /></div>
+        <button class="primary" type="submit">Add customer</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th></th></tr></thead>
+        <tbody>${customerRows}</tbody>
+      </table>
+    </div>
+
+    <div id="notes-panel"></div>
+
+    <div class="panel">
+      <h2>Tasks</h2>
+      <div id="task-alert" class="alert error" role="alert" hidden></div>
+      <form id="task-form" novalidate class="inline-form">
+        <div class="field"><label for="t-title">Title</label><input id="t-title" required /></div>
+        <div class="field">
+          <label for="t-customer">Customer (optional)</label>
+          <select id="t-customer" class="tenant-select"><option value="">—</option>${customerOptions}</select>
+        </div>
+        <div class="field"><label for="t-due">Due</label><input id="t-due" type="datetime-local" /></div>
+        <button class="primary" type="submit">Add task</button>
+      </form>
+      <table class="data-table">
+        <thead><tr><th>Title</th><th>Customer</th><th>Due</th><th>Status</th><th></th></tr></thead>
+        <tbody>${taskRows}</tbody>
+      </table>
+    </div>
+  `;
+
+  const after = () => {
+    document.getElementById('customer-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const alertBox = document.getElementById('customer-alert');
+      alertBox.hidden = true;
+      try {
+        await Api.createCustomer(state.tenantId, {
+          fullName: document.getElementById('c-name').value.trim(),
+          phone: document.getElementById('c-phone').value.trim() || undefined,
+          email: document.getElementById('c-email').value.trim() || undefined,
+        });
+        renderRoute();
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.hidden = false;
+      }
+    });
+
+    document.querySelectorAll('[data-action="notes"]').forEach((btn) =>
+      btn.addEventListener('click', () => showCustomerNotes(btn.dataset.id, btn.dataset.name)),
+    );
+
+    document.querySelectorAll('[data-action="task-done"]').forEach((btn) =>
+      btn.addEventListener('click', () => runAction(btn, () => Api.setTaskStatus(state.tenantId, btn.dataset.id, 'done'))),
+    );
+    document.querySelectorAll('[data-action="task-cancel"]').forEach((btn) =>
+      btn.addEventListener('click', () => runAction(btn, () => Api.setTaskStatus(state.tenantId, btn.dataset.id, 'cancelled'))),
+    );
+
+    document.getElementById('task-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const alertBox = document.getElementById('task-alert');
+      alertBox.hidden = true;
+      const dueVal = document.getElementById('t-due').value;
+      try {
+        await Api.createTask(state.tenantId, {
+          title: document.getElementById('t-title').value.trim(),
+          customerId: document.getElementById('t-customer').value || undefined,
+          dueAt: dueVal ? new Date(dueVal).toISOString() : undefined,
+        });
+        renderRoute();
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.hidden = false;
+      }
+    });
+  };
+
+  return { title: 'Customers', body, after };
+};
+
+/** Notes are staff-only (never a customer-facing route) — shown in an inline panel under the customer table, one customer at a time. */
+async function showCustomerNotes(customerId, customerName) {
+  const panel = document.getElementById('notes-panel');
+  panel.innerHTML = `<p style="color:var(--color-text-muted);font-size:0.85rem">Loading notes…</p>`;
+  try {
+    const notes = await Api.listNotes(state.tenantId, customerId);
+    const items = notes.length
+      ? notes.map((n) => `<li><strong>${formatDate(n.createdAt)}</strong> — ${escapeHtml(n.body)}</li>`).join('')
+      : '<li style="color:var(--color-text-muted);font-style:italic">No notes yet.</li>';
+    panel.innerHTML = `
+      <div class="panel">
+        <h2>Notes — ${escapeHtml(customerName)}</h2>
+        <div id="note-alert" class="alert error" role="alert" hidden></div>
+        <ul>${items}</ul>
+        <form id="note-form" novalidate class="inline-form">
+          <div class="field" style="flex:1;min-width:240px"><label for="note-body">Add a note</label><input id="note-body" required /></div>
+          <button class="primary" type="submit">Add note</button>
+        </form>
+      </div>`;
+    document.getElementById('note-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const alertBox = document.getElementById('note-alert');
+      alertBox.hidden = true;
+      try {
+        await Api.addNote(state.tenantId, customerId, { body: document.getElementById('note-body').value.trim() });
+        showCustomerNotes(customerId, customerName);
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.hidden = false;
+      }
+    });
+  } catch (err) {
+    panel.innerHTML = `<div class="alert error" role="alert">${escapeHtml(err.message)}</div>`;
+  }
+}
+
 
 // ---------------------------------------------------------------------
 // Bookings

@@ -116,6 +116,18 @@ const Api = {
   addAvailabilityRule: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/availability-rules`, { method: 'POST', body: payload }),
   addBlockedTime: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/blocked-time`, { method: 'POST', body: payload }),
 
+  // CRM — customer records, staff-only notes, and follow-up tasks
+  // (never surfaced through any customer-facing route; see crm.service.ts).
+  listCustomers: (tenantId) => apiRequest(`/tenants/${tenantId}/customers`),
+  createCustomer: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/customers`, { method: 'POST', body: payload }),
+  listNotes: (tenantId, customerId) => apiRequest(`/tenants/${tenantId}/customers/${customerId}/notes`),
+  addNote: (tenantId, customerId, payload) =>
+    apiRequest(`/tenants/${tenantId}/customers/${customerId}/notes`, { method: 'POST', body: payload }),
+  listTasks: (tenantId) => apiRequest(`/tenants/${tenantId}/tasks`),
+  createTask: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/tasks`, { method: 'POST', body: payload }),
+  setTaskStatus: (tenantId, taskId, status) =>
+    apiRequest(`/tenants/${tenantId}/tasks/${taskId}/status`, { method: 'PATCH', body: { status } }),
+
   // bookings
   listBookings: (tenantId) => apiRequest(`/tenants/${tenantId}/bookings`),
   transitionBooking: (tenantId, bookingId, payload) =>
