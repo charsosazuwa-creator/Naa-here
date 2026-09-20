@@ -58,15 +58,23 @@ async function apiRequest(path, { method = 'GET', body, auth = true } = {}) {
     throw new Error('Session expired. Please sign in again.');
   }
 
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    // Distinguishes "wrong credentials" from "signed in fine, but this
+    // Real envelope (see http-exception.filter.ts): { error: { code,
+    // message, requestId } } — NOT a top-level `message` or `error`
+    // string, which is what this file originally (incorrectly)
+    // checked, producing "[object Object]" instead of the actual
+    // message. Matches web/provider/api.js and web/customer/api.js's
+    // already-correct handling.
+    //
+    // err.status is set separately from this envelope so app.js can
+    // distinguish "wrong credentials" from "signed in fine, but this
     // account holds no platform role" (a 403 from PlatformPermissionGuard)
-    // — app.js uses this to show a clear message instead of a generic error.
-    const message = (data && (data.message || data.error)) || `Request failed (${res.status})`;
-    const err = new Error(Array.isArray(message) ? message.join(' ') : message);
+    // and show a clearer message than a generic error.
+    const message = data?.error?.message || `Request failed (${res.status}).`;
+    const err = new Error(message);
     err.status = res.status;
     throw err;
   }
