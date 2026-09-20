@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Naa here — Admin sign in</title>
+<link rel="stylesheet" href="../auth/tokens.css" />
+</head>
+<body>
+<main class="card">
+  <img src="../auth/assets/logo.png" alt="Naa here" style="height:40px;display:block;margin-bottom:var(--space-3)" />
+  <h1>Admin console</h1>
+  <p class="subtitle">Sign in with an account that holds a platform role (e.g. administrator).</p>
+
+  <div id="alert" class="alert error" role="alert" hidden></div>
+
+  <form id="login-form" novalidate>
+    <div class="field">
+      <label for="identifier">Email or phone</label>
+      <input id="identifier" name="identifier" type="text" autocomplete="username" required />
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+    </div>
+    <button class="primary" type="submit" id="submit-btn">Sign in</button>
+  </form>
+
+  <p class="links">Not staff? <a href="../customer/login.html">Go to the customer app</a></p>
+</main>
+
+<script src="api.js"></script>
+<script src="login.js"></script>
+</body>
+</html>

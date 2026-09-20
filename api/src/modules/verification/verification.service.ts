@@ -11,6 +11,13 @@ export interface VerificationSubmission {
   decisionNote: string | null;
 }
 
+export interface VerificationSubmissionForReview extends VerificationSubmission {
+  tenantId: string;
+  tenantName: string;
+  countryCode: string;
+  submittedAt: string;
+}
+
 /**
  * Phase-2 verification: a provider submits documents, an administrator
  * decides. The fuller review console (queue, filters, escalation) is
@@ -106,6 +113,34 @@ export class VerificationService {
       return rows.map(toSubmission);
     });
   }
+
+  /**
+   * Platform-wide view for the admin/verification console — every
+   * tenant's submissions, not just one. Relies on migration 010's
+   * second, permissive RLS policy (a caller holding a platform role
+   * that carries 'verification.decide' can see every
+   * verification_submission row), so this must run inside
+   * DatabaseService.withUser(callerUserId, ...) — app.user_id in
+   * scope, not app.tenant_id — the same way booking.service.ts's
+   * listMine() reads "my bookings" across tenants. Defaults to
+   * pending-only (what a reviewer actually needs to act on); set
+   * includeDecided to also see recently approved/rejected ones.
+   */
+  async listForReview(callerUserId: string, includeDecided = false): Promise<VerificationSubmissionForReview[]> {
+    return this.db.withUser(callerUserId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT vs.id, vs.document_type, vs.attachment_id, vs.status, vs.decision_note,
+                vs.tenant_id, vs.created_at, t.name AS tenant_name, t.country_code
+         FROM verification_submission vs
+         JOIN tenant t ON t.id = vs.tenant_id
+         WHERE $1::boolean OR vs.status = 'pending'
+         ORDER BY vs.created_at DESC
+         LIMIT 200`,
+        [includeDecided],
+      );
+      return rows.map(toSubmissionForReview);
+    });
+  }
 }
 
 function toSubmission(row: Record<string, unknown>): VerificationSubmission {
@@ -115,5 +150,15 @@ function toSubmission(row: Record<string, unknown>): VerificationSubmission {
     attachmentId: row.attachment_id as string,
     status: row.status as VerificationSubmission['status'],
     decisionNote: (row.decision_note as string) ?? null,
+  };
+}
+
+function toSubmissionForReview(row: Record<string, unknown>): VerificationSubmissionForReview {
+  return {
+    ...toSubmission(row),
+    tenantId: row.tenant_id as string,
+    tenantName: row.tenant_name as string,
+    countryCode: row.country_code as string,
+    submittedAt: row.created_at as string, // Date, serialized to ISO by JSON.stringify — same pattern booking.service.ts's toBooking() uses
   };
 }

@@ -88,6 +88,56 @@ async function applyMigrations(databaseUrl) {
   }
 }
 
+/**
+ * Bootstrap problem: the admin/verification console (and anything
+ * else behind PlatformPermissionGuard) needs at least one user to
+ * hold the 'administrator' platform role, but platform_role_assignment
+ * (migration 005) starts empty and nothing in the app itself can grant
+ * a role to someone with no role — there's no "first admin" signup
+ * flow, on purpose (self-service platform-admin signup would be a
+ * real security hole). Instead: PLATFORM_ADMIN_EMAILS (comma-
+ * separated) names who should hold it, and this runs on every start,
+ * same as applyMigrations — idempotent (ON CONFLICT DO NOTHING, same
+ * as migration 005's own backfill), connected as the admin/owner role
+ * so it bypasses RLS same as migrations do. If someone listed hasn't
+ * signed up yet, it just logs and moves on; the next deploy or
+ * restart after they do sign up picks it up automatically, no manual
+ * SQL required.
+ */
+async function grantBootstrapAdmins(databaseUrl) {
+  const emailsRaw = process.env.PLATFORM_ADMIN_EMAILS;
+  if (!emailsRaw || !emailsRaw.trim()) {
+    return;
+  }
+  const emails = emailsRaw
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  if (emails.length === 0) {
+    return;
+  }
+
+  const client = new Client({ connectionString: databaseUrl, ssl: sslOption() });
+  await client.connect();
+  try {
+    for (const email of emails) {
+      const { rows } = await client.query('SELECT id FROM app_user WHERE lower(email) = $1', [email]);
+      if (rows.length === 0) {
+        log(`PLATFORM_ADMIN_EMAILS: no account yet for ${email} — will grant automatically once they sign up.`);
+        continue;
+      }
+      // role_id 6 = administrator (see db/migrations/005_admin_finance.sql).
+      await client.query(
+        `INSERT INTO platform_role_assignment (user_id, role_id) VALUES ($1, 6) ON CONFLICT DO NOTHING`,
+        [rows[0].id],
+      );
+      log(`Ensured administrator platform role for ${email}.`);
+    }
+  } finally {
+    await client.end();
+  }
+}
+
 async function setRuntimePassword(databaseUrl, password) {
   const client = new Client({ connectionString: databaseUrl, ssl: sslOption() });
   await client.connect();
@@ -137,6 +187,9 @@ async function main() {
 
   log('Applying database migrations...');
   await applyMigrations(adminDatabaseUrl);
+
+  log('Checking PLATFORM_ADMIN_EMAILS...');
+  await grantBootstrapAdmins(adminDatabaseUrl);
 
   log('Setting app_runtime role password...');
   await setRuntimePassword(adminDatabaseUrl, appRuntimePassword);

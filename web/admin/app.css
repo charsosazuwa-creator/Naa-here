@@ -1,0 +1,38 @@
+/*
+ * Admin console shell — same base as provider/customer (topbar +
+ * content, ../auth/tokens.css tokens, ../provider/app.css for the
+ * .panel/.data-table/.badge/.actions-row styles this page reuses),
+ * overriding the narrow no-tenant width for a table-heavy page.
+ */
+
+body.no-tenant main.content {
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.review-note {
+  width: 100%;
+  min-height: 60px;
+  font: inherit;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  margin-top: var(--space-2);
+  resize: vertical;
+}
+
+.submission-row.expanded td { border-bottom: none; }
+
+.submission-detail td {
+  padding-top: 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.not-authorized {
+  max-width: 480px;
+  margin: var(--space-5) auto;
+  text-align: center;
+  color: var(--color-text-muted);
+}

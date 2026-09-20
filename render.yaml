@@ -84,3 +84,13 @@ services:
         value: onboarding@resend.dev
       - key: EMAIL_FROM_NAME
         value: Naa here
+      # Bootstraps who holds the 'administrator' platform role (see
+      # api/scripts/deploy-start.js's grantBootstrapAdmins and
+      # db/migrations/005_admin_finance.sql) — comma-separated emails.
+      # Not set here on purpose: fill it in via the Render dashboard,
+      # not committed, since it names who gets admin access. Runs on
+      # every start and is safe to leave set permanently; if someone
+      # listed hasn't signed up yet it just logs and retries on the
+      # next deploy/restart.
+      - key: PLATFORM_ADMIN_EMAILS
+        sync: false
