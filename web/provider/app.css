@@ -142,13 +142,13 @@ table.data-table tbody tr:hover { background: var(--color-surface); }
 .badge.status-verified, .badge.status-published, .badge.status-active, .badge.status-completed, .badge.status-paid, .badge.status-succeeded, .badge.status-resolved_customer, .badge.status-resolved_provider {
   background: rgba(28,124,63,0.12); color: var(--color-success);
 }
-.badge.status-pending, .badge.status-requested, .badge.status-draft, .badge.status-confirmed, .badge.status-open, .badge.status-quoted {
+.badge.status-pending, .badge.status-pending_review, .badge.status-requested, .badge.status-draft, .badge.status-confirmed, .badge.status-open, .badge.status-quoted {
   background: rgba(47,111,237,0.12); color: var(--color-primary-dark);
 }
 .badge.status-rejected, .badge.status-cancelled, .badge.status-declined, .badge.status-suspended, .badge.status-no_show, .badge.status-failed, .badge.status-dismissed {
   background: var(--color-error-bg); color: var(--color-error);
 }
-.badge.status-unverified, .badge.status-archived, .badge.status-in_progress, .badge.status-accepted {
+.badge.status-unverified, .badge.status-archived, .badge.status-paused, .badge.status-in_progress, .badge.status-accepted {
   background: var(--color-surface); color: var(--color-text-muted);
 }
 
@@ -188,3 +188,25 @@ button.small:disabled { opacity: 0.5; cursor: not-allowed; }
 .tenant-card:hover { background: var(--color-surface); }
 .tenant-card .name { font-weight: 600; }
 .tenant-card .meta { color: var(--color-text-muted); font-size: 0.85rem; }
+
+/* Marketplace listing images (web/shared/listing-ui.js) — used by
+   both the provider and customer portals' "My Listings" and by the
+   customer portal's public listing detail page. */
+.listing-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.listing-image-thumb {
+  width: 120px;
+}
+.listing-image-thumb img {
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  display: block;
+  margin-bottom: 4px;
+}

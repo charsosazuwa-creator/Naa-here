@@ -31,6 +31,12 @@ const NAV_ITEMS = [
   { key: 'customers', label: 'Customers' },
   { key: 'bookings', label: 'Bookings' },
   { key: 'job-requests', label: 'Job requests' },
+  // Marketplace listings (User Story 2) aren't tenant-scoped — they're
+  // owned by the signed-in user directly (see
+  // db/migrations/012_marketplace_listings.sql) — but the tab lives
+  // here since a Service Provider managing their business is exactly
+  // who'd want to post a product/service/invention too.
+  { key: 'listings', label: 'My Listings' },
   { key: 'disputes', label: 'Disputes' },
   { key: 'payouts', label: 'Payouts' },
 ];
@@ -1019,6 +1025,12 @@ views.disputes = async () => {
   `;
   return { title: 'Disputes', body };
 };
+
+// ---------------------------------------------------------------------
+// My Listings (User Story 2) — shared with the customer portal, see
+// web/shared/listing-ui.js.
+// ---------------------------------------------------------------------
+views.listings = async () => ListingUI.renderMyListings(Api, runAction);
 
 // ---------------------------------------------------------------------
 // Payouts

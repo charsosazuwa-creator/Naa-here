@@ -133,12 +133,136 @@
     });
   }
 
+  function priceLabel(l) {
+    if (l.priceType === 'contact') return 'Contact for price';
+    if (l.priceType === 'negotiable') return 'Negotiable';
+    if (l.priceMinorUnits === null || l.priceMinorUnits === undefined) return '—';
+    const amount = `${(Number(l.priceMinorUnits) / 100).toFixed(2)} ${l.currencyCode ?? ''}`.trim();
+    return l.priceType === 'starting_from' ? `From ${amount}` : amount;
+  }
+
+  async function renderPendingListings() {
+    view.innerHTML = `<p class="empty-state">Loading…</p>`;
+    let listings;
+    try {
+      listings = await Api.listPendingListings();
+    } catch (err) {
+      if (err.status === 403) {
+        renderNotAuthorized();
+        return;
+      }
+      renderError(err);
+      return;
+    }
+
+    if (listings.length === 0) {
+      view.innerHTML = `
+        <div class="panel">
+          <h2>Pending marketplace listings</h2>
+          <p class="empty-state">Nothing waiting on review right now.</p>
+        </div>`;
+      return;
+    }
+
+    const rows = listings
+      .map(
+        (l) => `
+      <tr class="submission-row" data-id="${escapeHtml(l.id)}">
+        <td>${escapeHtml(l.title)}</td>
+        <td>${escapeHtml(l.listingType)}</td>
+        <td>${escapeHtml(l.ownerName)}</td>
+        <td>${escapeHtml(priceLabel(l))}</td>
+        <td>${formatDateTime(l.updatedAt)}</td>
+        <td>
+          <button class="btn-plain" data-action="review" data-id="${escapeHtml(l.id)}">Review</button>
+        </td>
+      </tr>
+      <tr class="submission-detail" data-detail-for="${escapeHtml(l.id)}" hidden>
+        <td colspan="6">
+          <p>${escapeHtml(l.description ?? '')}</p>
+          ${
+            l.images.length
+              ? `<div class="listing-review-images">${l.images.map((img) => `<img src="${escapeHtml(img.url)}" alt="" />`).join('')}</div>`
+              : '<p style="color:var(--color-text-muted);font-size:0.85rem">No images attached.</p>'
+          }
+          <p style="font-size:0.85rem;color:var(--color-text-muted)">
+            Category: <strong>${escapeHtml(l.category)}</strong> · Contact:
+            ${escapeHtml(l.contactMethod)} — ${escapeHtml(l.contactValue)}
+            ${l.locationText ? ` · Location: ${escapeHtml(l.locationText)}` : ''}
+          </p>
+          <textarea class="review-note" placeholder="Reason (shown to the owner, required to reject)"></textarea>
+          <div class="actions-row">
+            <button class="primary" data-action="approve" data-id="${escapeHtml(l.id)}">Approve</button>
+            <button class="btn-plain" data-action="reject" data-id="${escapeHtml(l.id)}">Reject</button>
+          </div>
+        </td>
+      </tr>`,
+      )
+      .join('');
+
+    view.innerHTML = `
+      <div class="panel">
+        <h2>Pending marketplace listings</h2>
+        <table class="data-table">
+          <thead>
+            <tr><th>Title</th><th>Type</th><th>Owner</th><th>Price</th><th>Submitted</th><th></th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+
+    view.querySelectorAll('[data-action="review"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const detail = view.querySelector(`[data-detail-for="${CSS.escape(id)}"]`);
+        detail.hidden = !detail.hidden;
+      });
+    });
+
+    view.querySelectorAll('[data-action="approve"], [data-action="reject"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        const decision = btn.dataset.action === 'approve' ? 'approved' : 'rejected';
+        const reason = view.querySelector(`[data-detail-for="${CSS.escape(id)}"] .review-note`).value.trim();
+
+        if (decision === 'rejected' && !reason) {
+          window.alert('A reason is required to reject a listing.');
+          return;
+        }
+        if (decision === 'rejected' && !window.confirm('Reject this listing?')) {
+          return;
+        }
+
+        btn.disabled = true;
+        try {
+          await Api.decideListing(id, decision, reason || undefined);
+          await renderPendingListings();
+        } catch (err) {
+          window.alert(err.message);
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  function switchTab(tab) {
+    document.querySelectorAll('.admin-tabs button').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
+    if (tab === 'listings') {
+      renderPendingListings();
+    } else {
+      renderPending();
+    }
+  }
+
   async function init() {
     if (!isSignedIn()) {
       window.location.href = 'login.html';
       return;
     }
     renderAuthArea();
+    document.querySelectorAll('.admin-tabs button').forEach((btn) => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+    });
     await renderPending();
   }
 

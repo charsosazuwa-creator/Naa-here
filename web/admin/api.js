@@ -100,4 +100,17 @@ const Api = {
       auth: true,
     });
   },
+  // marketplace listing moderation (User Story 2) — same
+  // 'listing.moderate' permission and pending-queue shape as
+  // verification, see listing-admin.controller.ts.
+  listPendingListings() {
+    return apiRequest('/admin/listings/pending', { auth: true });
+  },
+  decideListing(listingId, decision, reason) {
+    return apiRequest(`/admin/listings/${listingId}/decide`, {
+      method: 'POST',
+      body: { decision, reason },
+      auth: true,
+    });
+  },
 };

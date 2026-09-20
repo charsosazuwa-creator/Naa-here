@@ -1,6 +1,6 @@
 import 'reflect-metadata';
-import { join } from 'path';
-import { existsSync } from 'fs';
+import { dirname, join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import type { Request, Response, NextFunction } from 'express';
@@ -53,6 +53,26 @@ async function bootstrap() {
     next();
   });
   app.useStaticAssets(webDir);
+
+  // Real, on-disk storage for marketplace listing images (see
+  // modules/marketplace/listing-image.service.ts) — a sibling of
+  // web/, found the same two-candidate way (the compiled dist layout
+  // varies, see webDir above), created on first boot since (unlike
+  // web/) nothing commits this directory: it's real uploaded content,
+  // gitignored. Exposed to listing-image.service.ts via an env var
+  // instead of it re-deriving the same __dirname-relative path (which
+  // would depend on THAT file's own compiled depth, not main.ts's).
+  //
+  // Render's free plan has no persistent disk, so this directory (and
+  // every image in it) is wiped on every deploy/restart — acceptable
+  // for now (see the OAuth/email-provider pattern of shipping a
+  // working default and upgrading it later); moving to real object
+  // storage (S3-compatible, Cloudinary, etc.) if that becomes a
+  // problem is a follow-up, not a blocker.
+  const uploadsDir = join(dirname(webDir), 'uploads');
+  mkdirSync(uploadsDir, { recursive: true });
+  app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
+  process.env.UPLOADS_DIR = uploadsDir;
 
   // Phase 6 hardening: an explicit allowlist rather than
   // app.enableCors() with no options (which reflects every Origin

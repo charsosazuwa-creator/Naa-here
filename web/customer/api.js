@@ -107,4 +107,45 @@ const Api = {
   myJobRequests: () => apiRequest('/job-requests/mine', { auth: true }),
   acceptJobRequestQuote: (tenantId, jobRequestId) =>
     apiRequest(`/tenants/${tenantId}/job-requests/${jobRequestId}/accept`, { method: 'POST', auth: true }),
+
+  // marketplace listings (User Story 2): public browse/detail (any
+  // registered user's published product/service/invention), plus
+  // "My Listings" management for the signed-in user's own — a
+  // Customer account can own listings same as a Service Provider (see
+  // db/migrations/012_marketplace_listings.sql). uploadListingImage
+  // bypasses apiRequest's JSON body handling: it's multipart, not JSON.
+  searchListings: (query) => apiRequest(`/discover/listings${query ? `?${query}` : ''}`),
+  getPublicListing: (listingId) => apiRequest(`/discover/listings/${listingId}`),
+  listMyListings: () => apiRequest('/listings/mine', { auth: true }),
+  createListing: (payload) => apiRequest('/listings', { method: 'POST', body: payload, auth: true }),
+  updateListing: (listingId, payload) => apiRequest(`/listings/${listingId}`, { method: 'PATCH', body: payload, auth: true }),
+  submitListing: (listingId) => apiRequest(`/listings/${listingId}/submit`, { method: 'POST', auth: true }),
+  pauseListing: (listingId) => apiRequest(`/listings/${listingId}/pause`, { method: 'POST', auth: true }),
+  resumeListing: (listingId) => apiRequest(`/listings/${listingId}/resume`, { method: 'POST', auth: true }),
+  archiveListing: (listingId) => apiRequest(`/listings/${listingId}`, { method: 'DELETE', auth: true }),
+  deleteListingImage: (listingId, imageId) =>
+    apiRequest(`/listings/${listingId}/images/${imageId}`, { method: 'DELETE', auth: true }),
+  async uploadListingImage(listingId, file) {
+    const token = getAccessToken();
+    if (!token) {
+      window.location.href = `login.html?next=${encodeURIComponent(window.location.hash)}`;
+      throw new Error('Not signed in.');
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE_URL}/listings/${listingId}/images`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) {
+        clearSession();
+        window.location.href = `login.html?next=${encodeURIComponent(window.location.hash)}`;
+      }
+      throw new Error(data?.error?.message || `Request failed (${res.status}).`);
+    }
+    return data;
+  },
 };

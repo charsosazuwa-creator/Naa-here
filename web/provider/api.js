@@ -150,4 +150,41 @@ const Api = {
   // provider's own portal (see the admin back office, not yet built).
   listPayouts: (tenantId) => apiRequest(`/tenants/${tenantId}/payouts`),
   requestPayout: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/payouts`, { method: 'POST', body: payload }),
+
+  // marketplace listings (User Story 2) — owned by the signed-in user
+  // directly, not this tenant, but managed from this portal since any
+  // Service Provider is also a registered user (see
+  // db/migrations/012_marketplace_listings.sql). uploadListingImage
+  // bypasses apiRequest's JSON body handling: it's multipart, not JSON.
+  listMyListings: () => apiRequest('/listings/mine'),
+  createListing: (payload) => apiRequest('/listings', { method: 'POST', body: payload }),
+  updateListing: (listingId, payload) => apiRequest(`/listings/${listingId}`, { method: 'PATCH', body: payload }),
+  submitListing: (listingId) => apiRequest(`/listings/${listingId}/submit`, { method: 'POST' }),
+  pauseListing: (listingId) => apiRequest(`/listings/${listingId}/pause`, { method: 'POST' }),
+  resumeListing: (listingId) => apiRequest(`/listings/${listingId}/resume`, { method: 'POST' }),
+  archiveListing: (listingId) => apiRequest(`/listings/${listingId}`, { method: 'DELETE' }),
+  deleteListingImage: (listingId, imageId) => apiRequest(`/listings/${listingId}/images/${imageId}`, { method: 'DELETE' }),
+  async uploadListingImage(listingId, file) {
+    const token = getAccessToken();
+    if (!token) {
+      window.location.href = 'login.html';
+      throw new Error('Not signed in.');
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE_URL}/listings/${listingId}/images`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) {
+        clearSession();
+        window.location.href = 'login.html';
+      }
+      throw new Error(data?.error?.message || `Request failed (${res.status}).`);
+    }
+    return data;
+  },
 };

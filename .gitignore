@@ -31,3 +31,9 @@ Thumbs.db
 # local one-click demo runner: generated secrets and embedded-Postgres data
 launcher/.secrets.json
 launcher/pgdata/
+
+# Uploaded marketplace listing images (real bytes, not source — see
+# api/src/main.ts's uploadsDir and modules/marketplace/listing-image.service.ts).
+# Ephemeral on Render's free plan regardless; never belongs in git.
+uploads/
+**/uploads/

@@ -36,3 +36,33 @@ body.no-tenant main.content {
   text-align: center;
   color: var(--color-text-muted);
 }
+
+.admin-tabs {
+  display: flex;
+  gap: var(--space-2);
+  max-width: 900px;
+  margin: 0 auto var(--space-4);
+}
+.admin-tabs button {
+  padding: 8px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.admin-tabs button.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.listing-review-images img {
+  width: 80px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  margin-right: var(--space-2);
+}

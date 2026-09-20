@@ -14,6 +14,7 @@ import { FilesModule } from './modules/files/files.module';
 import { CrmModule } from './modules/crm/crm.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { JobModule } from './modules/job/job.module';
+import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { DisputeModule } from './modules/dispute/dispute.module';
 import { FinanceModule } from './modules/finance/finance.module';
@@ -41,6 +42,7 @@ import { HealthModule } from './modules/health/health.module';
     CrmModule,
     BookingModule,
     JobModule,
+    MarketplaceModule,
     PaymentsModule,
     DisputeModule,
     FinanceModule,

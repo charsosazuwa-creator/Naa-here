@@ -396,6 +396,34 @@ views.bookings = async () => {
 };
 
 // ---------------------------------------------------------------------
+// Marketplace (User Story 2): public browse/detail for
+// products/services/inventions any registered user has posted, plus
+// "My Listings" management for the signed-in user's own. Rendering
+// logic is shared with the provider portal — see
+// web/shared/listing-ui.js — since a listing is owned by a user, not
+// a tenant (db/migrations/012_marketplace_listings.sql).
+// ---------------------------------------------------------------------
+views.market = async (params) => {
+  const filters = {
+    listingType: params.get('type') || '',
+    countryCode: params.get('country') || '',
+    location: params.get('location') || '',
+    search: params.get('q') || '',
+  };
+  return ListingUI.renderMarketBrowse(Api, filters, 'market-item');
+};
+
+views['market-item'] = async (params, routeParams) => ListingUI.renderMarketDetail(Api, routeParams[0], 'market');
+
+views['my-listings'] = async () => {
+  if (!isSignedIn()) {
+    window.location.href = `login.html?next=${encodeURIComponent('#/my-listings')}`;
+    return { title: 'My Listings', body: '' };
+  }
+  return ListingUI.renderMyListings(Api, runAction);
+};
+
+// ---------------------------------------------------------------------
 // Job requests ("mine"): the artisan flow's customer-facing half —
 // see job.service.ts's listMine/accept. Status moves
 // requested -> quoted -> accepted (creates a booking, visible under
@@ -504,7 +532,12 @@ function renderNav() {
   const { section } = parseRoute();
   document.querySelectorAll('.customer-nav a').forEach((a) => {
     const target = a.getAttribute('href').replace(/^#\//, '').split(/[/?]/)[0];
-    a.classList.toggle('active', target === section || (target === 'browse' && section === 'service'));
+    a.classList.toggle(
+      'active',
+      target === section ||
+        (target === 'browse' && section === 'service') ||
+        (target === 'market' && section === 'market-item'),
+    );
   });
 }
 
