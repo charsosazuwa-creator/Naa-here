@@ -12,5 +12,6 @@ import { DirectMessageService } from './direct-message.service';
 @Module({
   controllers: [DirectMessageController, ProviderConversationController],
   providers: [DirectMessageService],
+  exports: [DirectMessageService],
 })
 export class MessagingModule {}

@@ -41,6 +41,7 @@ export class RealtimeGateway implements OnModuleInit {
   private readonly logger = new Logger(RealtimeGateway.name);
   private wss?: WebSocketServer;
   private readonly socketsByUser = new Map<string, Set<AuthedSocket>>();
+  private readonly inboundHandlers = new Map<string, Array<(userId: string, payload: unknown) => void>>();
 
   constructor(
     private readonly httpAdapterHost: HttpAdapterHost,
@@ -111,15 +112,41 @@ export class RealtimeGateway implements OnModuleInit {
       }
     });
 
-    // Inbound messages (call signaling in a later phase) are handled
-    // per-feature by attaching a listener here once that exists; for
-    // direct messaging this channel is push-only, so nothing to wire
-    // up on 'message' yet.
+    // Inbound messages: call signaling (Phase 2) registers handlers
+    // via onInbound() below rather than this gateway knowing anything
+    // about call semantics -- direct messaging never needed this
+    // (push-only), calls do (relaying an SDP offer/answer/ICE
+    // candidate is inherently bidirectional and doesn't need to be
+    // durably persisted the way a message or call-status change does).
+    socket.on('message', (raw: Buffer) => {
+      let parsed: { event?: string; payload?: unknown };
+      try {
+        parsed = JSON.parse(raw.toString());
+      } catch {
+        return;
+      }
+      if (!parsed?.event || !socket.userId) return;
+      const handlers = this.inboundHandlers.get(parsed.event);
+      handlers?.forEach((handler) => handler(socket.userId as string, parsed.payload));
+    });
   }
 
   isUserOnline(userId: string): boolean {
     const sockets = this.socketsByUser.get(userId);
     return Boolean(sockets && sockets.size > 0);
+  }
+
+  /**
+   * Registers a handler for an inbound event name (e.g. 'call:signal').
+   * Multiple handlers may register for the same event; each is called
+   * with the AUTHENTICATED sender's userId (never trust a userId in
+   * the payload itself) and the raw payload.
+   */
+  onInbound(event: string, handler: (userId: string, payload: unknown) => void): void {
+    if (!this.inboundHandlers.has(event)) {
+      this.inboundHandlers.set(event, []);
+    }
+    this.inboundHandlers.get(event)!.push(handler);
   }
 
   /** Best-effort push to every open connection a user has (any tab/device). Never throws -- a disconnected recipient just relies on their next fetch. */

@@ -21,6 +21,7 @@ import { FinanceModule } from './modules/finance/finance.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { CommunityModule } from './modules/community/community.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
+import { CallsModule } from './modules/calls/calls.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -53,6 +54,7 @@ import { HealthModule } from './modules/health/health.module';
     ModerationModule,
     CommunityModule,
     MessagingModule,
+    CallsModule,
     HealthModule,
   ],
 })

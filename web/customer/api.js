@@ -203,6 +203,18 @@ const Api = {
   blockConversation: (conversationId) => apiRequest(`/conversations/${conversationId}/block`, { method: 'POST', auth: true }),
   unblockConversation: (conversationId) => apiRequest(`/conversations/${conversationId}/block`, { method: 'DELETE', auth: true }),
 
+  // voice calling (Phase 2 -- User Stories 1 & 2's calling halves).
+  // accept/decline/end/timeoutCall are shared verbs regardless of who
+  // started the call, same as reply on the messaging side.
+  startCallWithBusiness: (tenantId) => apiRequest('/calls', { method: 'POST', body: { tenantId }, auth: true }),
+  startGroupCall: (groupId, calleeUserId) =>
+    apiRequest(`/groups/${groupId}/calls`, { method: 'POST', body: { calleeUserId }, auth: true }),
+  myCalls: () => apiRequest('/calls/mine', { auth: true }),
+  acceptCall: (callId) => apiRequest(`/calls/${callId}/accept`, { method: 'POST', auth: true }),
+  declineCall: (callId) => apiRequest(`/calls/${callId}/decline`, { method: 'POST', auth: true }),
+  endCall: (callId) => apiRequest(`/calls/${callId}/end`, { method: 'POST', auth: true }),
+  timeoutCall: (callId) => apiRequest(`/calls/${callId}/timeout`, { method: 'POST', auth: true }),
+
   acceptInvitation: (token) => apiRequest(`/customer-invitations/${encodeURIComponent(token)}/accept`, { method: 'POST', auth: true }),
   declineInvitation: (token) => apiRequest(`/customer-invitations/${encodeURIComponent(token)}/decline`, { method: 'POST', auth: true }),
 };

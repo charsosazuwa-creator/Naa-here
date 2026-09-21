@@ -697,7 +697,8 @@ views.customers = async () => {
             <button class="small" data-action="notes" data-id="${c.id}" data-name="${escapeHtml(c.fullName)}">Notes</button>
             ${
               c.linkedUserId
-                ? `<button class="small" data-action="message-customer" data-user-id="${c.linkedUserId}" data-name="${escapeHtml(c.fullName)}">Message</button>`
+                ? `<button class="small" data-action="message-customer" data-user-id="${c.linkedUserId}" data-name="${escapeHtml(c.fullName)}">Message</button>
+                   <button class="small" data-action="call-customer" data-user-id="${c.linkedUserId}" data-name="${escapeHtml(c.fullName)}">Call</button>`
                 : ''
             }
           </div>
@@ -853,6 +854,12 @@ views.customers = async () => {
           btn.disabled = false;
         }
       }),
+    );
+
+    document.querySelectorAll('[data-action="call-customer"]').forEach((btn) =>
+      btn.addEventListener('click', () =>
+        CallUI.startCall(() => Api.startCallWithCustomer(state.tenantId, btn.dataset.userId), btn.dataset.name),
+      ),
     );
 
     document.querySelectorAll('[data-action="task-done"]').forEach((btn) =>
@@ -1220,11 +1227,19 @@ function renderProviderDirectMessageHtml(m) {
     </div>`;
 }
 
+function providerCallOtherPartyLabel(c) {
+  if (c.contextType === 'group') {
+    return c.callerUserId === state.user?.id ? c.calleeName ?? 'Group member' : c.callerName;
+  }
+  return c.callerUserId === state.user?.id ? (c.calleeName ?? 'Customer') : c.callerName;
+}
+
 async function renderConversationListForTenant() {
   let conversations = [];
+  let calls = [];
   let loadError = null;
   try {
-    conversations = await Api.listConversationsForTenant(state.tenantId);
+    [conversations, calls] = await Promise.all([Api.listConversationsForTenant(state.tenantId), Api.listCallsForTenant(state.tenantId)]);
   } catch (err) {
     loadError = err.message;
   }
@@ -1244,6 +1259,24 @@ async function renderConversationListForTenant() {
             <td>${escapeHtml(c.lastMessagePreview ?? '')}</td>
             <td>${formatDate(c.lastMessageAt)}</td>
             <td><a href="#/t/${state.tenantId}/messages/${c.id}">Open</a></td>
+          </tr>`,
+          )
+          .join('')}
+      </tbody></table></div>`
+    }
+
+    <h2 style="margin-top:var(--space-4)">Call history</h2>
+    ${
+      calls.length === 0
+        ? '<p class="empty-state">No calls yet.</p>'
+        : `<div class="panel"><table class="data-table"><thead><tr><th>With</th><th>Status</th><th>When</th></tr></thead><tbody>
+        ${calls
+          .map(
+            (c) => `
+          <tr>
+            <td>${escapeHtml(providerCallOtherPartyLabel(c))}</td>
+            <td>${badge(c.status)}</td>
+            <td>${formatDate(c.startedAt)}</td>
           </tr>`,
           )
           .join('')}
@@ -1703,6 +1736,11 @@ async function renderGroupDetail(groupId) {
             : ''
         }
         ${
+          isMember && m.status === 'active' && m.userId !== state.user?.id
+            ? `<button class="small" data-action="member-call" data-user-id="${m.userId}" data-name="${escapeHtml(m.fullName)}" style="margin-top:4px">Call</button>`
+            : ''
+        }
+        ${
           canModerate && m.role !== 'owner' && m.userId !== state.user?.id
             ? `<div class="actions-row" style="margin-top:4px">
                  <button class="small" data-action="member-moderate" data-member="${m.membershipId}" data-mod-action="warn">Warn</button>
@@ -2034,6 +2072,12 @@ async function renderGroupDetail(groupId) {
       }),
     );
 
+    document.querySelectorAll('[data-action="member-call"]').forEach((btn) =>
+      btn.addEventListener('click', () =>
+        CallUI.startCall(() => Api.startGroupCall(groupId, btn.dataset.userId), btn.dataset.name),
+      ),
+    );
+
     document.querySelectorAll('[data-action="report-decide"]').forEach((btn) =>
       btn.addEventListener('click', async () => {
         const reason = window.prompt('Reason for this decision?');
@@ -2294,6 +2338,17 @@ async function init() {
   document.getElementById('sign-out-btn').addEventListener('click', () => {
     clearSession();
     window.location.href = 'login.html';
+  });
+
+  CallUI.init({
+    getAccessToken,
+    getCurrentUserId: () => state.user?.id,
+    api: {
+      accept: Api.acceptCall,
+      decline: Api.declineCall,
+      end: Api.endCall,
+      timeout: Api.timeoutCall,
+    },
   });
 
   try {

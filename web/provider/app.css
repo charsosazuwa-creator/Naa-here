@@ -249,3 +249,46 @@ button.small:disabled { opacity: 0.5; cursor: not-allowed; }
   text-decoration: none;
   color: var(--color-primary);
 }
+
+/* Voice calling (User Stories 1-3's calling halves) -- web/shared/call-ui.js. */
+.call-overlay {
+  position: fixed;
+  bottom: var(--space-4);
+  right: var(--space-4);
+  z-index: 1000;
+  width: 280px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: var(--space-3);
+}
+.call-overlay .call-title {
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+}
+.call-overlay .call-status {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+}
+.call-overlay .call-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.call-overlay .call-actions button {
+  flex: 1;
+}
+.call-toast {
+  position: fixed;
+  bottom: var(--space-4);
+  right: var(--space-4);
+  z-index: 999;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.85rem;
+  color: var(--color-text);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}

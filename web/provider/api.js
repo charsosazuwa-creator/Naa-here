@@ -282,6 +282,17 @@ const Api = {
   sendConversationMessage: (conversationId, body) =>
     apiRequest(`/conversations/${conversationId}/messages`, { method: 'POST', body: { body } }),
 
+  // voice calling (Phase 2 -- User Stories 1 & 3's calling halves).
+  startCallWithCustomer: (tenantId, customerUserId) =>
+    apiRequest(`/tenants/${tenantId}/calls`, { method: 'POST', body: { customerUserId } }),
+  listCallsForTenant: (tenantId) => apiRequest(`/tenants/${tenantId}/calls`),
+  startGroupCall: (groupId, calleeUserId) => apiRequest(`/groups/${groupId}/calls`, { method: 'POST', body: { calleeUserId } }),
+  myCalls: () => apiRequest('/calls/mine'),
+  acceptCall: (callId) => apiRequest(`/calls/${callId}/accept`, { method: 'POST' }),
+  declineCall: (callId) => apiRequest(`/calls/${callId}/decline`, { method: 'POST' }),
+  endCall: (callId) => apiRequest(`/calls/${callId}/end`, { method: 'POST' }),
+  timeoutCall: (callId) => apiRequest(`/calls/${callId}/timeout`, { method: 'POST' }),
+
   async uploadListingImage(listingId, file) {
     const token = getAccessToken();
     if (!token) {

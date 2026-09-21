@@ -265,6 +265,11 @@ views.service = async (params, routeParams) => {
         <button class="primary" type="submit" id="dm-start-btn">${isSignedIn() ? 'Send message' : 'Sign in to message'}</button>
       </form>
     </div>
+
+    <div class="panel">
+      <h2>Call this business</h2>
+      <button class="primary" type="button" id="call-business-btn">${isSignedIn() ? 'Call' : 'Sign in to call'}</button>
+    </div>
   `;
 
   const after = () => {
@@ -277,6 +282,14 @@ views.service = async (params, routeParams) => {
         endInput.value = toLocalInputValue(new Date(start.getTime() + service.durationMinutes * 60000));
       });
     }
+
+    document.getElementById('call-business-btn').addEventListener('click', () => {
+      if (!isSignedIn()) {
+        window.location.href = `login.html?next=${encodeURIComponent(`#/service/${serviceId}`)}`;
+        return;
+      }
+      CallUI.startCall(() => Api.startCallWithBusiness(service.tenantId), service.tenantName);
+    });
 
     document.getElementById('dm-start-form').addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -667,11 +680,20 @@ function renderDirectMessageHtml(m) {
     </div>`;
 }
 
+function callOtherPartyLabel(c, myUserId) {
+  if (c.contextType === 'group') {
+    return c.callerUserId === myUserId ? c.calleeName ?? 'Group member' : c.callerName;
+  }
+  // Customer <-> Provider: the business name is always the "other party" from a Customer's view.
+  return c.tenantName ?? 'Business';
+}
+
 async function renderConversationList() {
   let conversations = [];
+  let calls = [];
   let loadError = null;
   try {
-    conversations = await Api.myConversations();
+    [conversations, calls] = await Promise.all([Api.myConversations(), Api.myCalls()]);
   } catch (err) {
     loadError = err.message;
   }
@@ -691,6 +713,24 @@ async function renderConversationList() {
             <td>${escapeHtml(c.lastMessagePreview ?? '')}</td>
             <td>${formatDateTime(c.lastMessageAt)}</td>
             <td><a href="#/conversations/${c.id}">Open</a></td>
+          </tr>`,
+          )
+          .join('')}
+      </tbody></table></div>`
+    }
+
+    <h2 style="margin-top:var(--space-4)">Call history</h2>
+    ${
+      calls.length === 0
+        ? '<p class="empty-state">No calls yet.</p>'
+        : `<div class="panel"><table class="data-table"><thead><tr><th>With</th><th>Status</th><th>When</th></tr></thead><tbody>
+        ${calls
+          .map(
+            (c) => `
+          <tr>
+            <td>${escapeHtml(callOtherPartyLabel(c, state.user?.id))}</td>
+            <td>${badge(c.status)}</td>
+            <td>${formatDateTime(c.startedAt)}</td>
           </tr>`,
           )
           .join('')}
@@ -988,6 +1028,18 @@ async function renderRoute() {
 
 function init() {
   renderAuthArea();
+  if (isSignedIn()) {
+    CallUI.init({
+      getAccessToken,
+      getCurrentUserId: () => state.user?.id,
+      api: {
+        accept: Api.acceptCall,
+        decline: Api.declineCall,
+        end: Api.endCall,
+        timeout: Api.timeoutCall,
+      },
+    });
+  }
   window.addEventListener('hashchange', () => {
     stopMessagingRealtime();
     renderRoute();

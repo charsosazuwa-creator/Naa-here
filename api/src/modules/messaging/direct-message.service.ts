@@ -59,8 +59,15 @@ export class DirectMessageService {
    * and the Config & Deployment Guide's RLS gotcha note): the tenant
    * IS known here, so there's no excuse for a plain, contextless query.
    */
-  private async assertProviderCanInitiate(tenantId: string, customerUserId: string): Promise<void> {
-    const eligible = await this.db.withTenant(tenantId, async (client) => {
+  /**
+   * The eligibility check itself, extracted to a public method so
+   * CallService (Phase 2) can reuse the exact same "eligible
+   * relationship" rule for Provider-initiated calls that this class
+   * uses for Provider-initiated chat -- the user stories' own note
+   * draws no distinction between "call or message" on this point.
+   */
+  async isProviderEligibleToInitiate(tenantId: string, customerUserId: string): Promise<boolean> {
+    return this.db.withTenant(tenantId, async (client) => {
       const { rows } = await client.query(
         `SELECT
            EXISTS (
@@ -84,7 +91,10 @@ export class DirectMessageService {
       const row = rows[0];
       return row.has_booking || row.has_job_request || row.has_accepted_invitation || row.customer_messaged_first;
     });
+  }
 
+  private async assertProviderCanInitiate(tenantId: string, customerUserId: string): Promise<void> {
+    const eligible = await this.isProviderEligibleToInitiate(tenantId, customerUserId);
     if (!eligible) {
       throw new ForbiddenException(
         'You can message a customer only once there is an existing booking, job request, accepted invitation, or the customer has contacted you first.',

@@ -73,6 +73,12 @@
       on(event, fn) {
         (handlers[event] = handlers[event] || []).push(fn);
       },
+      /** Best-effort send (e.g. call signaling) -- silently dropped if the socket isn't open right now. */
+      send(event, payload) {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ event, payload }));
+        }
+      },
       close() {
         closed = true;
         socket?.close();
