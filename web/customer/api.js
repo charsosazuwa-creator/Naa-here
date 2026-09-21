@@ -190,6 +190,19 @@ const Api = {
   // signed-in customer -- apiRequest's auth:true here is what sends an
   // unauthenticated visitor to login.html?next=... and back.
   previewInvitation: (token) => apiRequest(`/customer-invitations/${encodeURIComponent(token)}`),
+
+  // direct messaging (User Story 2's chat half): a Customer can always
+  // start a new conversation with any tenant (no eligibility gate on
+  // this side -- see direct-message.service.ts's class comment), reply
+  // within an existing one, and block/unblock a business.
+  startConversation: (payload) => apiRequest('/conversations', { method: 'POST', body: payload, auth: true }),
+  myConversations: () => apiRequest('/conversations/mine', { auth: true }),
+  listConversationMessages: (conversationId) => apiRequest(`/conversations/${conversationId}/messages`, { auth: true }),
+  sendConversationMessage: (conversationId, body) =>
+    apiRequest(`/conversations/${conversationId}/messages`, { method: 'POST', body: { body }, auth: true }),
+  blockConversation: (conversationId) => apiRequest(`/conversations/${conversationId}/block`, { method: 'POST', auth: true }),
+  unblockConversation: (conversationId) => apiRequest(`/conversations/${conversationId}/block`, { method: 'DELETE', auth: true }),
+
   acceptInvitation: (token) => apiRequest(`/customer-invitations/${encodeURIComponent(token)}/accept`, { method: 'POST', auth: true }),
   declineInvitation: (token) => apiRequest(`/customer-invitations/${encodeURIComponent(token)}/decline`, { method: 'POST', auth: true }),
 };

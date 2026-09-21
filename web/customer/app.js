@@ -251,6 +251,20 @@ views.service = async (params, routeParams) => {
         <button class="primary" type="submit" id="job-request-btn">${isSignedIn() ? 'Send request' : 'Sign in to request'}</button>
       </form>
     </div>
+
+    <div class="panel">
+      <h2>Message this business</h2>
+      <p style="color:var(--color-text-muted);font-size:0.85rem;margin-bottom:var(--space-2)">
+        Ask a question before booking — a Customer can always start a conversation with a business.
+      </p>
+      <div id="dm-start-alert" class="alert error" role="alert" hidden></div>
+      <form id="dm-start-form" novalidate>
+        <div class="field">
+          <textarea id="dm-start-body" rows="2" placeholder="Write a message…" required></textarea>
+        </div>
+        <button class="primary" type="submit" id="dm-start-btn">${isSignedIn() ? 'Send message' : 'Sign in to message'}</button>
+      </form>
+    </div>
   `;
 
   const after = () => {
@@ -263,6 +277,37 @@ views.service = async (params, routeParams) => {
         endInput.value = toLocalInputValue(new Date(start.getTime() + service.durationMinutes * 60000));
       });
     }
+
+    document.getElementById('dm-start-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      if (!isSignedIn()) {
+        window.location.href = `login.html?next=${encodeURIComponent(`#/service/${serviceId}`)}`;
+        return;
+      }
+
+      const alertBox = document.getElementById('dm-start-alert');
+      const btn = document.getElementById('dm-start-btn');
+      const text = document.getElementById('dm-start-body').value.trim();
+      if (!text) return;
+      alertBox.hidden = true;
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+
+      try {
+        const conversation = await Api.startConversation({
+          tenantId: service.tenantId,
+          body: text,
+          contextType: 'general',
+        });
+        window.location.hash = `#/conversations/${conversation.id}`;
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.hidden = false;
+        btn.disabled = false;
+        btn.textContent = 'Send message';
+      }
+    });
 
     document.getElementById('job-request-form').addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -594,6 +639,165 @@ views['job-requests'] = async () => {
 };
 
 // ---------------------------------------------------------------------
+// Direct messaging (User Stories 2 & 3's chat half): conversations
+// between a signed-in Customer and a Provider business. Real-time
+// delivery rides RealtimeGateway/web/shared/realtime-ws.js -- see that
+// file's header for why losing the connection never loses a message,
+// only its instantness.
+// ---------------------------------------------------------------------
+
+const messagingState = { conn: null, conversationId: null };
+
+function stopMessagingRealtime() {
+  if (messagingState.conn) {
+    messagingState.conn.close();
+    messagingState.conn = null;
+  }
+  messagingState.conversationId = null;
+}
+
+function renderDirectMessageHtml(m) {
+  const mine = m.senderIsCustomer;
+  return `
+    <div class="chat-message" data-message-id="${m.id}" style="margin-bottom:10px">
+      <div style="font-size:0.78rem;color:var(--color-text-muted)">
+        <strong>${mine ? 'You' : 'Business'}</strong> · ${formatDateTime(m.createdAt)}
+      </div>
+      <div>${escapeHtml(m.body)}</div>
+    </div>`;
+}
+
+async function renderConversationList() {
+  let conversations = [];
+  let loadError = null;
+  try {
+    conversations = await Api.myConversations();
+  } catch (err) {
+    loadError = err.message;
+  }
+
+  const body = `
+    <h1 class="page-title">Messages</h1>
+    ${loadError ? `<div class="alert error" role="alert">${escapeHtml(loadError)}</div>` : ''}
+    ${
+      conversations.length === 0
+        ? '<p class="empty-state">No conversations yet — message a business from its profile page.</p>'
+        : `<div class="panel"><table class="data-table"><thead><tr><th>Business</th><th>Last message</th><th>When</th><th></th></tr></thead><tbody>
+        ${conversations
+          .map(
+            (c) => `
+          <tr>
+            <td>${escapeHtml(c.tenantName)}${c.unreadCount > 0 ? ` <span class="badge status-pending">${c.unreadCount} new</span>` : ''}</td>
+            <td>${escapeHtml(c.lastMessagePreview ?? '')}</td>
+            <td>${formatDateTime(c.lastMessageAt)}</td>
+            <td><a href="#/conversations/${c.id}">Open</a></td>
+          </tr>`,
+          )
+          .join('')}
+      </tbody></table></div>`
+    }
+  `;
+
+  return { title: 'Messages', body };
+}
+
+async function renderConversationDetail(conversationId) {
+  let conversations, messages;
+  try {
+    [conversations, messages] = await Promise.all([Api.myConversations(), Api.listConversationMessages(conversationId)]);
+  } catch (err) {
+    return { title: 'Messages', body: `<div class="alert error" role="alert">${escapeHtml(err.message)}</div>` };
+  }
+  const conversation = conversations.find((c) => c.id === conversationId);
+
+  const body = `
+    <a class="back-link" href="#/conversations">&larr; Back to messages</a>
+    <h1 class="page-title">${escapeHtml(conversation?.tenantName ?? 'Conversation')}</h1>
+    <div class="panel">
+      <div id="dm-messages" style="max-height:420px;overflow-y:auto;margin-bottom:var(--space-2)" data-empty="${messages.length === 0}">
+        ${
+          messages.length === 0
+            ? '<p style="color:var(--color-text-muted);font-style:italic;margin:0">No messages yet — say hello.</p>'
+            : messages.map(renderDirectMessageHtml).join('')
+        }
+      </div>
+      <div id="dm-alert" class="alert error" role="alert" hidden></div>
+      <form id="dm-form" novalidate>
+        <div class="field">
+          <textarea id="dm-body" rows="2" placeholder="Write a message…" required></textarea>
+        </div>
+        <button class="primary" type="submit" id="dm-send-btn">Send</button>
+      </form>
+      <div style="margin-top:var(--space-2)">
+        <button class="small" type="button" id="dm-block-btn">Block this business</button>
+        <button class="small" type="button" id="dm-unblock-btn">Unblock this business</button>
+      </div>
+    </div>
+  `;
+
+  const after = () => {
+    const container = document.getElementById('dm-messages');
+    container.scrollTop = container.scrollHeight;
+
+    document.getElementById('dm-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const textarea = document.getElementById('dm-body');
+      const alertBox = document.getElementById('dm-alert');
+      const btn = document.getElementById('dm-send-btn');
+      const text = textarea.value.trim();
+      if (!text) return;
+      alertBox.hidden = true;
+      btn.disabled = true;
+      try {
+        const message = await Api.sendConversationMessage(conversationId, text);
+        if (container.dataset.empty === 'true') container.innerHTML = '';
+        container.dataset.empty = 'false';
+        container.insertAdjacentHTML('beforeend', renderDirectMessageHtml(message));
+        container.scrollTop = container.scrollHeight;
+        textarea.value = '';
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.hidden = false;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('dm-block-btn').addEventListener('click', () =>
+      runAction(document.getElementById('dm-block-btn'), () => Api.blockConversation(conversationId)),
+    );
+    document.getElementById('dm-unblock-btn').addEventListener('click', () =>
+      runAction(document.getElementById('dm-unblock-btn'), () => Api.unblockConversation(conversationId)),
+    );
+
+    stopMessagingRealtime();
+    messagingState.conversationId = conversationId;
+    messagingState.conn = RealtimeWS.connect(getAccessToken);
+    messagingState.conn.on('message:new', (payload) => {
+      if (payload.conversationId !== messagingState.conversationId) return;
+      const el = document.getElementById('dm-messages');
+      if (!el || !document.body.contains(el)) return;
+      if (el.dataset.empty === 'true') el.innerHTML = '';
+      el.dataset.empty = 'false';
+      el.insertAdjacentHTML('beforeend', renderDirectMessageHtml(payload.message));
+      el.scrollTop = el.scrollHeight;
+    });
+  };
+
+  return { title: conversation?.tenantName ?? 'Conversation', body, after };
+}
+
+views.conversations = async (params, routeParams) => {
+  if (!isSignedIn()) {
+    window.location.href = `login.html?next=${encodeURIComponent('#/conversations')}`;
+    return { title: 'Messages', body: '' };
+  }
+  const conversationId = routeParams[0];
+  if (conversationId) return renderConversationDetail(conversationId);
+  return renderConversationList();
+};
+
+// ---------------------------------------------------------------------
 // Customer invitations (User Story 6): landed on from an emailed link
 // via login.html?next=%23%2Finvite%2FTOKEN or, for a brand-new
 // account, straight after ../auth/verify.html -- see
@@ -784,7 +988,10 @@ async function renderRoute() {
 
 function init() {
   renderAuthArea();
-  window.addEventListener('hashchange', renderRoute);
+  window.addEventListener('hashchange', () => {
+    stopMessagingRealtime();
+    renderRoute();
+  });
   renderRoute();
 }
 

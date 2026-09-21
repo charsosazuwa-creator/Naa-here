@@ -7,6 +7,13 @@ export interface CustomerProfile {
   fullName: string;
   phone: string | null;
   email: string | null;
+  // Only present once this customer_profile has been linked to a
+  // registered app_user (via signup or an accepted customer
+  // invitation) -- messaging.controller callers use this to decide
+  // whether "Message" is even offered for a given row (see
+  // direct-message.service.ts, which needs an app_user id, not a
+  // customer_profile id).
+  linkedUserId: string | null;
 }
 
 export interface CustomerNote {
@@ -39,7 +46,7 @@ export class CrmService {
       const { rows } = await client.query(
         `INSERT INTO customer_profile (tenant_id, full_name, phone, email, created_by)
          VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, full_name, phone, email`,
+         RETURNING id, full_name, phone, email, linked_user_id`,
         [tenantId, dto.fullName, dto.phone ?? null, dto.email ?? null, createdBy],
       );
       return toCustomer(rows[0]);
@@ -49,7 +56,7 @@ export class CrmService {
   async listCustomers(tenantId: string): Promise<CustomerProfile[]> {
     return this.db.withTenant(tenantId, async (client) => {
       const { rows } = await client.query(
-        `SELECT id, full_name, phone, email FROM customer_profile WHERE tenant_id = $1 ORDER BY created_at DESC`,
+        `SELECT id, full_name, phone, email, linked_user_id FROM customer_profile WHERE tenant_id = $1 ORDER BY created_at DESC`,
         [tenantId],
       );
       return rows.map(toCustomer);
@@ -132,6 +139,7 @@ function toCustomer(row: Record<string, unknown>): CustomerProfile {
     fullName: row.full_name as string,
     phone: (row.phone as string) ?? null,
     email: (row.email as string) ?? null,
+    linkedUserId: (row.linked_user_id as string) ?? null,
   };
 }
 

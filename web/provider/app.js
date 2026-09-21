@@ -29,6 +29,7 @@ const NAV_ITEMS = [
   { key: 'availability', label: 'Availability' },
   { key: 'staff', label: 'Staff' },
   { key: 'customers', label: 'Customers' },
+  { key: 'messages', label: 'Messages' },
   { key: 'bookings', label: 'Bookings' },
   { key: 'job-requests', label: 'Job requests' },
   // Marketplace listings (User Story 2) aren't tenant-scoped — they're
@@ -694,6 +695,11 @@ views.customers = async () => {
         <td>
           <div class="actions-row">
             <button class="small" data-action="notes" data-id="${c.id}" data-name="${escapeHtml(c.fullName)}">Notes</button>
+            ${
+              c.linkedUserId
+                ? `<button class="small" data-action="message-customer" data-user-id="${c.linkedUserId}" data-name="${escapeHtml(c.fullName)}">Message</button>`
+                : ''
+            }
           </div>
         </td>
       </tr>`,
@@ -829,6 +835,24 @@ views.customers = async () => {
 
     document.querySelectorAll('[data-action="notes"]').forEach((btn) =>
       btn.addEventListener('click', () => showCustomerNotes(btn.dataset.id, btn.dataset.name)),
+    );
+
+    document.querySelectorAll('[data-action="message-customer"]').forEach((btn) =>
+      btn.addEventListener('click', async () => {
+        const body = window.prompt(`Message to ${btn.dataset.name}:`);
+        if (!body || !body.trim()) return;
+        btn.disabled = true;
+        try {
+          const conversation = await Api.startConversationAsProvider(state.tenantId, {
+            customerUserId: btn.dataset.userId,
+            body: body.trim(),
+          });
+          window.location.hash = `#/t/${state.tenantId}/messages/${conversation.id}`;
+        } catch (err) {
+          window.alert(err.message);
+          btn.disabled = false;
+        }
+      }),
     );
 
     document.querySelectorAll('[data-action="task-done"]').forEach((btn) =>
@@ -1163,6 +1187,156 @@ views.disputes = async () => {
   };
 
   return { title: 'Disputes', body, after };
+};
+
+// ---------------------------------------------------------------------
+// Direct messaging (User Story 3's chat half): conversations between
+// this tenant's staff and their Customers. Real-time delivery rides
+// RealtimeGateway/web/shared/realtime-ws.js; a new conversation can
+// only be started here when DirectMessageService finds an eligible
+// relationship (an existing booking, job request, accepted invitation,
+// or the customer having messaged first) -- see "Message" buttons on
+// the Customers tab and Api.startConversationAsProvider.
+// ---------------------------------------------------------------------
+
+const providerMessagingState = { conn: null, conversationId: null };
+
+function stopProviderMessagingRealtime() {
+  if (providerMessagingState.conn) {
+    providerMessagingState.conn.close();
+    providerMessagingState.conn = null;
+  }
+  providerMessagingState.conversationId = null;
+}
+
+function renderProviderDirectMessageHtml(m) {
+  const mine = !m.senderIsCustomer;
+  return `
+    <div class="chat-message" data-message-id="${m.id}" style="margin-bottom:10px">
+      <div style="font-size:0.78rem;color:var(--color-text-muted)">
+        <strong>${mine ? 'You' : 'Customer'}</strong> · ${formatDate(m.createdAt)}
+      </div>
+      <div>${escapeHtml(m.body)}</div>
+    </div>`;
+}
+
+async function renderConversationListForTenant() {
+  let conversations = [];
+  let loadError = null;
+  try {
+    conversations = await Api.listConversationsForTenant(state.tenantId);
+  } catch (err) {
+    loadError = err.message;
+  }
+
+  const body = `
+    <h1 class="page-title">Messages</h1>
+    ${loadError ? `<div class="alert error" role="alert">${escapeHtml(loadError)}</div>` : ''}
+    ${
+      conversations.length === 0
+        ? '<p class="empty-state">No conversations yet — a Customer can message you first, or start one from the Customers tab once there is an eligible relationship.</p>'
+        : `<div class="panel"><table class="data-table"><thead><tr><th>Customer</th><th>Last message</th><th>When</th><th></th></tr></thead><tbody>
+        ${conversations
+          .map(
+            (c) => `
+          <tr>
+            <td>${escapeHtml(c.customerName)}${c.unreadCount > 0 ? ` <span class="badge status-pending">${c.unreadCount} new</span>` : ''}</td>
+            <td>${escapeHtml(c.lastMessagePreview ?? '')}</td>
+            <td>${formatDate(c.lastMessageAt)}</td>
+            <td><a href="#/t/${state.tenantId}/messages/${c.id}">Open</a></td>
+          </tr>`,
+          )
+          .join('')}
+      </tbody></table></div>`
+    }
+  `;
+
+  return { title: 'Messages', body };
+}
+
+async function renderConversationDetailForTenant(conversationId) {
+  let conversations, messages;
+  try {
+    [conversations, messages] = await Promise.all([
+      Api.listConversationsForTenant(state.tenantId),
+      Api.listConversationMessages(conversationId),
+    ]);
+  } catch (err) {
+    return { title: 'Messages', body: `<div class="alert error" role="alert">${escapeHtml(err.message)}</div>` };
+  }
+  const conversation = conversations.find((c) => c.id === conversationId);
+
+  const body = `
+    <a class="back-link" href="#/t/${state.tenantId}/messages">&larr; Back to messages</a>
+    <h1 class="page-title">${escapeHtml(conversation?.customerName ?? 'Conversation')}</h1>
+    <div class="panel">
+      <div id="pdm-messages" style="max-height:420px;overflow-y:auto;margin-bottom:var(--space-2)" data-empty="${messages.length === 0}">
+        ${
+          messages.length === 0
+            ? '<p style="color:var(--color-text-muted);font-style:italic;margin:0">No messages yet.</p>'
+            : messages.map(renderProviderDirectMessageHtml).join('')
+        }
+      </div>
+      <div id="pdm-alert" class="alert error" role="alert" hidden></div>
+      <form id="pdm-form" novalidate>
+        <div class="field">
+          <textarea id="pdm-body" rows="2" placeholder="Write a reply…" required></textarea>
+        </div>
+        <button class="primary" type="submit" id="pdm-send-btn">Send</button>
+      </form>
+    </div>
+  `;
+
+  const after = () => {
+    const container = document.getElementById('pdm-messages');
+    container.scrollTop = container.scrollHeight;
+
+    document.getElementById('pdm-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const textarea = document.getElementById('pdm-body');
+      const alertBox = document.getElementById('pdm-alert');
+      const btn = document.getElementById('pdm-send-btn');
+      const text = textarea.value.trim();
+      if (!text) return;
+      alertBox.hidden = true;
+      btn.disabled = true;
+      try {
+        const message = await Api.sendConversationMessage(conversationId, text);
+        if (container.dataset.empty === 'true') container.innerHTML = '';
+        container.dataset.empty = 'false';
+        container.insertAdjacentHTML('beforeend', renderProviderDirectMessageHtml(message));
+        container.scrollTop = container.scrollHeight;
+        textarea.value = '';
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.hidden = false;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    stopProviderMessagingRealtime();
+    providerMessagingState.conversationId = conversationId;
+    providerMessagingState.conn = RealtimeWS.connect(getAccessToken);
+    providerMessagingState.conn.on('message:new', (payload) => {
+      if (payload.conversationId !== providerMessagingState.conversationId) return;
+      const el = document.getElementById('pdm-messages');
+      if (!el || !document.body.contains(el)) return;
+      if (el.dataset.empty === 'true') el.innerHTML = '';
+      el.dataset.empty = 'false';
+      el.insertAdjacentHTML('beforeend', renderProviderDirectMessageHtml(payload.message));
+      el.scrollTop = el.scrollHeight;
+    });
+  };
+
+  return { title: conversation?.customerName ?? 'Conversation', body, after };
+}
+
+views.messages = async () => {
+  const { section } = parseRoute();
+  const match = section.match(/^messages\/([^/]+)$/);
+  if (match) return renderConversationDetailForTenant(match[1]);
+  return renderConversationListForTenant();
 };
 
 // ---------------------------------------------------------------------
@@ -2133,6 +2307,7 @@ async function init() {
 
   window.addEventListener('hashchange', () => {
     stopGroupChatPolling();
+    stopProviderMessagingRealtime();
     renderRoute();
   });
   await renderRoute();

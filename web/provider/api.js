@@ -270,6 +270,18 @@ const Api = {
   resumeListing: (listingId) => apiRequest(`/listings/${listingId}/resume`, { method: 'POST' }),
   archiveListing: (listingId) => apiRequest(`/listings/${listingId}`, { method: 'DELETE' }),
   deleteListingImage: (listingId, imageId) => apiRequest(`/listings/${listingId}/images/${imageId}`, { method: 'DELETE' }),
+  // direct messaging (User Story 3's chat half): starting a NEW
+  // conversation as the provider is eligibility-gated server-side (an
+  // existing booking, job request, accepted invitation, or the
+  // customer having messaged first -- see direct-message.service.ts);
+  // replying within an existing one is unrestricted for either side.
+  listConversationsForTenant: (tenantId) => apiRequest(`/tenants/${tenantId}/conversations`),
+  startConversationAsProvider: (tenantId, payload) =>
+    apiRequest(`/tenants/${tenantId}/conversations`, { method: 'POST', body: payload }),
+  listConversationMessages: (conversationId) => apiRequest(`/conversations/${conversationId}/messages`),
+  sendConversationMessage: (conversationId, body) =>
+    apiRequest(`/conversations/${conversationId}/messages`, { method: 'POST', body: { body } }),
+
   async uploadListingImage(listingId, file) {
     const token = getAccessToken();
     if (!token) {
