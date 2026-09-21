@@ -292,3 +292,21 @@ button.small:disabled { opacity: 0.5; cursor: not-allowed; }
   color: var(--color-text);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
+
+/* Help center (web/shared/help-ui.js), used by both the customer and
+   provider apps -- this file loads in both (see each app's index.html),
+   so it's the shared home for these rules rather than duplicating them. */
+.help-search-field { max-width: 420px; margin-bottom: var(--space-4); }
+.help-category { margin-bottom: var(--space-4); }
+.help-category h2 { margin-bottom: var(--space-2); }
+.help-list { list-style: none; margin: 0; padding: 0; }
+.help-list li { padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border); }
+.help-list li:last-child { border-bottom: none; }
+.help-list a { font-weight: 600; }
+.help-summary { margin: var(--space-1) 0 0; color: var(--color-text-muted); font-size: 0.9rem; }
+.help-breadcrumb { color: var(--color-text-muted); font-size: 0.85rem; margin-bottom: var(--space-1); }
+.help-article-body { max-width: 680px; line-height: 1.6; }
+.help-article-body p { margin: 0 0 var(--space-3); }
+.help-article-body ul, .help-article-body ol { margin: 0 0 var(--space-3); padding-left: 1.4em; }
+.help-related-heading { margin-top: var(--space-5); }
+.back-link { display: inline-block; margin-bottom: var(--space-3); color: var(--color-text-muted); }

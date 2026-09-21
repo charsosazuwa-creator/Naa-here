@@ -41,6 +41,7 @@ const NAV_ITEMS = [
   { key: 'groups', label: 'Groups' },
   { key: 'disputes', label: 'Disputes' },
   { key: 'payouts', label: 'Payouts' },
+  { key: 'help', label: 'Help' },
 ];
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -2251,6 +2252,15 @@ async function runAction(button, action) {
     button.disabled = false;
   }
 }
+
+// ---------------------------------------------------------------------
+// Help: searchable help center (shared renderer, see web/shared/help-ui.js).
+// ---------------------------------------------------------------------
+views.help = async () => {
+  const { tenantId, section } = parseRoute();
+  const routeParams = section.split('/').slice(1);
+  return HelpUI.render(PROVIDER_HELP_TOPICS, routeParams, { basePath: `#/t/${tenantId}/help` });
+};
 
 function parseRoute() {
   const hash = window.location.hash.replace(/^#\/?/, '');

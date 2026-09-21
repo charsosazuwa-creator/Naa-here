@@ -945,6 +945,11 @@ views.invite = async (params, routeParams) => {
 };
 
 // ---------------------------------------------------------------------
+// Help: searchable help center (shared renderer, see web/shared/help-ui.js).
+// ---------------------------------------------------------------------
+views.help = async (params, routeParams) => HelpUI.render(CUSTOMER_HELP_TOPICS, routeParams, { basePath: '#/help' });
+
+// ---------------------------------------------------------------------
 // Shell: routing.
 // ---------------------------------------------------------------------
 
