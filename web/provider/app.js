@@ -224,17 +224,16 @@ views.verification = async () => {
     <div class="panel">
       <h2>Submit a document</h2>
       <p style="color:var(--color-text-muted);font-size:0.85rem;margin-top:-8px">
-        This milestone accepts upload <em>metadata</em> only (no real object storage is wired up yet —
-        see the README's "What Milestone 2 does not cover yet"). A storage key stands in for a real
-        file upload here.
+        Accepted file types: JPEG, PNG, WEBP or PDF, up to 10MB. The file is uploaded directly to
+        secure storage — reviewers can open it from the Naa here admin console.
       </p>
       <div id="verify-alert" class="alert error" role="alert" hidden></div>
       <form id="submit-verification-form" novalidate>
         <div class="field"><label for="v-doctype">Document type</label>
           <input id="v-doctype" placeholder="e.g. business_registration_certificate" required />
         </div>
-        <div class="field"><label for="v-storagekey">Storage key</label>
-          <input id="v-storagekey" placeholder="e.g. uploads/registration.pdf" required />
+        <div class="field"><label for="v-file">Document file</label>
+          <input id="v-file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" required />
         </div>
         <button class="primary" type="submit">Submit for review</button>
       </form>
@@ -247,11 +246,41 @@ views.verification = async () => {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       alertBox.hidden = true;
+
+      const fileInput = document.getElementById('v-file');
+      const file = fileInput.files[0];
+      if (!file) {
+        alertBox.textContent = 'Choose a file to upload.';
+        alertBox.hidden = false;
+        return;
+      }
+
+      const submitButton = form.querySelector('button[type="submit"]');
+      submitButton.disabled = true;
+      const originalLabel = submitButton.textContent;
+
       try {
+        submitButton.textContent = 'Uploading…';
+        const { uploadUrl, storageKey } = await Api.presignUpload({
+          contentType: file.type,
+          byteSize: file.size,
+          tenantId: state.tenantId,
+        });
+
+        const putRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type },
+          body: file,
+        });
+        if (!putRes.ok) {
+          throw new Error(`Upload to storage failed (${putRes.status}).`);
+        }
+
+        submitButton.textContent = 'Submitting…';
         const media = await Api.uploadMedia({
-          storageKey: document.getElementById('v-storagekey').value.trim(),
-          contentType: 'application/pdf',
-          byteSize: 1024,
+          storageKey,
+          contentType: file.type,
+          byteSize: file.size,
           tenantId: state.tenantId,
         });
         await Api.submitVerification(state.tenantId, {
@@ -262,6 +291,9 @@ views.verification = async () => {
       } catch (err) {
         alertBox.textContent = err.message;
         alertBox.hidden = false;
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = originalLabel;
       }
     });
   };

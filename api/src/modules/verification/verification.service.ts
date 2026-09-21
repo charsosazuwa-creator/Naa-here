@@ -126,6 +126,32 @@ export class VerificationService {
    * pending-only (what a reviewer actually needs to act on); set
    * includeDecided to also see recently approved/rejected ones.
    */
+  /**
+   * A platform reviewer's document-view path: resolves which tenant a
+   * submission actually belongs to via the same permissive RLS policy
+   * listForReview() relies on (so an unauthorized caller gets a plain
+   * "not found" here, never a hint that the id exists), then hands
+   * that resolved tenantId to MediaService.getDownloadUrl() directly
+   * -- deliberately not the membership-checked getDownloadUrlForMember(),
+   * since a platform reviewer is never a member of the tenant whose
+   * documents they're reviewing.
+   */
+  async getDocumentUrl(callerUserId: string, submissionId: string): Promise<{ url: string; expiresInSeconds: number }> {
+    const [submission] = await this.db.withUser(callerUserId, async (client) => {
+      const { rows } = await client.query<{ tenant_id: string; attachment_id: string }>(
+        `SELECT tenant_id, attachment_id FROM verification_submission WHERE id = $1`,
+        [submissionId],
+      );
+      return rows;
+    });
+
+    if (!submission) {
+      throw new NotFoundException('No verification submission found with that id.');
+    }
+
+    return this.media.getDownloadUrl(submission.tenant_id, submission.attachment_id);
+  }
+
   async listForReview(callerUserId: string, includeDecided = false): Promise<VerificationSubmissionForReview[]> {
     return this.db.withUser(callerUserId, async (client) => {
       const { rows } = await client.query(

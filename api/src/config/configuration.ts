@@ -88,6 +88,22 @@ export interface AppConfig {
     anthropicApiKey: string;
     model: string;
   };
+  // Real object storage for user-uploaded files (verification documents
+  // today; listing/service photos are a candidate follow-up). Cloudflare
+  // R2 is S3-API-compatible, so the same @aws-sdk/client-s3 client works
+  // against it -- see media.service.ts. Optional the same "ships without
+  // it, upgrade later" shape as the other integrations above:
+  // MediaService.isStorageConfigured() returns false and presign routes
+  // return a clear 501 rather than crashing when these are empty.
+  storage: {
+    r2: {
+      accountId: string;
+      accessKeyId: string;
+      secretAccessKey: string;
+      bucket: string;
+      presignTtlSeconds: number;
+    };
+  };
 }
 
 export default (): AppConfig => ({
@@ -140,5 +156,14 @@ export default (): AppConfig => ({
   ai: {
     anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? '',
     model: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5-20251001',
+  },
+  storage: {
+    r2: {
+      accountId: process.env.R2_ACCOUNT_ID ?? '',
+      accessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
+      bucket: process.env.R2_BUCKET_NAME ?? '',
+      presignTtlSeconds: Number(process.env.R2_PRESIGN_TTL_SECONDS ?? 300),
+    },
   },
 });

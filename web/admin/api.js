@@ -100,6 +100,9 @@ const Api = {
       auth: true,
     });
   },
+  getVerificationDocumentUrl(submissionId) {
+    return apiRequest(`/admin/verification/${submissionId}/document-url`, { auth: true });
+  },
   // marketplace listing moderation (User Story 2) — same
   // 'listing.moderate' permission and pending-queue shape as
   // verification, see listing-admin.controller.ts.

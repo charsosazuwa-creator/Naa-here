@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PlatformPermissionGuard } from '../../common/guards/platform-permission.guard';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
@@ -10,8 +10,10 @@ import { VerificationService } from './verification.service';
  * mounted under /tenants/:tenantId/verification and so can only ever
  * list one tenant at a time — no use to a reviewer who doesn't already
  * know which tenants have pending submissions. This is the "queue"
- * half of the admin/verification console: list what needs review.
- * Deciding still goes through VerificationController's existing
+ * half of the admin/verification console: list what needs review, and
+ * (once real file storage is configured -- see media.service.ts) get
+ * a signed URL to actually view a submitted document. Deciding still
+ * goes through VerificationController's existing
  * POST /tenants/:tenantId/verification/:submissionId/decide (already
  * PlatformPermissionGuard-protected and already tenant-context-correct
  * via DatabaseService.withTenant) — the admin console's frontend calls
@@ -27,5 +29,12 @@ export class VerificationAdminController {
   @RequirePermission('verification.decide')
   listPending(@CurrentUserId() userId: string, @Query('includeDecided') includeDecided?: string) {
     return this.verification.listForReview(userId, includeDecided === 'true');
+  }
+
+  @Get(':submissionId/document-url')
+  @UseGuards(PlatformPermissionGuard)
+  @RequirePermission('verification.decide')
+  getDocumentUrl(@CurrentUserId() userId: string, @Param('submissionId') submissionId: string) {
+    return this.verification.getDocumentUrl(userId, submissionId);
   }
 }

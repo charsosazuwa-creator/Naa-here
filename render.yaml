@@ -139,3 +139,20 @@ services:
         sync: false
       - key: ANTHROPIC_MODEL
         value: claude-haiku-4-5-20251001
+      # Real object storage for user-uploaded files (verification
+      # documents today) -- Cloudflare R2, an S3-API-compatible bucket.
+      # Optional: leaving these unset makes document upload/preview
+      # return a clear "not set up yet" error instead of failing at
+      # deploy time; existing functionality is unaffected. Create a
+      # bucket and an API token (R2 > Manage API Tokens, "Object Read &
+      # Write" scoped to this bucket) in the Cloudflare dashboard, then
+      # fill these in via the Render dashboard, not here, so the
+      # secret key never ends up committed to the repo.
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false

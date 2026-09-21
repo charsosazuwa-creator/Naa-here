@@ -80,10 +80,11 @@
       <tr class="submission-detail" data-detail-for="${escapeHtml(s.id)}" hidden>
         <td colspan="6">
           <p>Document type: <strong>${escapeHtml(s.documentType)}</strong> — attachment id
-          <code>${escapeHtml(s.attachmentId)}</code>. This milestone records upload metadata only
-          (see media.service.ts); there's no stored file to preview yet, so review this against
-          whatever the provider submitted through their own channel until real file storage is
-          wired up.</p>
+          <code>${escapeHtml(s.attachmentId)}</code>.</p>
+          <div class="actions-row">
+            <button class="btn-plain" data-action="view-document" data-id="${escapeHtml(s.id)}">View document</button>
+          </div>
+          <p class="document-view-status" data-status-for="${escapeHtml(s.id)}" style="color:var(--color-text-muted);font-size:0.85rem"></p>
           <textarea class="review-note" placeholder="Optional note (visible to the provider)"></textarea>
           <div class="actions-row">
             <button class="primary" data-action="approve" data-id="${escapeHtml(s.id)}" data-tenant="${escapeHtml(s.tenantId)}">Approve</button>
@@ -108,6 +109,24 @@
         const id = btn.dataset.id;
         const detail = view.querySelector(`[data-detail-for="${CSS.escape(id)}"]`);
         detail.hidden = !detail.hidden;
+      });
+    });
+
+    view.querySelectorAll('[data-action="view-document"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const { id } = btn.dataset;
+        const statusEl = view.querySelector(`[data-status-for="${CSS.escape(id)}"]`);
+        btn.disabled = true;
+        statusEl.textContent = 'Fetching document link…';
+        try {
+          const { url } = await Api.getVerificationDocumentUrl(id);
+          window.open(url, '_blank', 'noopener');
+          statusEl.textContent = 'Opened in a new tab. The link expires shortly, so click "View document" again if it stops working.';
+        } catch (err) {
+          statusEl.textContent = err.message;
+        } finally {
+          btn.disabled = false;
+        }
       });
     });
 

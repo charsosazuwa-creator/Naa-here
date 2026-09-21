@@ -112,6 +112,7 @@ const Api = {
   listVerification: (tenantId) => apiRequest(`/tenants/${tenantId}/verification`),
   submitVerification: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/verification`, { method: 'POST', body: payload }),
   uploadMedia: (payload) => apiRequest('/media', { method: 'POST', body: payload }),
+  presignUpload: (payload) => apiRequest('/media/presign-upload', { method: 'POST', body: payload }),
 
   // catalogue
   listServices: (tenantId) => apiRequest(`/tenants/${tenantId}/services?all=true`),
