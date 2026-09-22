@@ -81,6 +81,7 @@ const Api = {
   // discovery — public, no sign-in required.
   discoverServices: (query) => apiRequest(`/discover/services${query ? `?${query}` : ''}`),
   getService: (serviceId) => apiRequest(`/discover/services/${serviceId}`),
+  getAvailableSlots: (serviceId, days) => apiRequest(`/discover/services/${serviceId}/availability-slots?days=${days ?? 7}`),
 
   // bookings — a customer is just any signed-in user (see
   // booking.controller.ts's comment: deliberately not behind

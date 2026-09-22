@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { DiscoveryService } from './discovery.service';
 import { DiscoverServicesQueryDto } from './dto/discover.dto';
+import { AvailabilitySlotsQueryDto } from './dto/availability-slots.dto';
 
 /**
  * Deliberately unauthenticated (no @UseGuards) — this is the public
@@ -22,5 +23,10 @@ export class DiscoveryController {
   @Get('services/:id')
   getService(@Param('id') id: string) {
     return this.discovery.getServiceDetail(id);
+  }
+
+  @Get('services/:id/availability-slots')
+  getAvailableSlots(@Param('id') id: string, @Query() query: AvailabilitySlotsQueryDto) {
+    return this.discovery.getAvailableSlots(id, query.days ?? 7);
   }
 }

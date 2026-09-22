@@ -48,12 +48,6 @@ function badge(status) {
   return `<span class="badge status-${escapeHtml(status)}">${escapeHtml(String(status).replace(/_/g, ' '))}</span>`;
 }
 
-/** Local-time datetime-local input value ("YYYY-MM-DDTHH:mm") for a Date, so what the customer picks is what gets sent, not a UTC-shifted reading. */
-function toLocalInputValue(date) {
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
 async function serviceById(serviceId) {
   if (!state.serviceCache[serviceId]) {
     state.serviceCache[serviceId] = await Api.getService(serviceId).catch(() => null);
@@ -172,11 +166,6 @@ views.service = async (params, routeParams) => {
     windows: service.availability.filter((r) => r.dayOfWeek === dayOfWeek),
   }));
 
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - (now.getMinutes() % 30) + 30, 0, 0);
-  const defaultStart = toLocalInputValue(now);
-  const defaultEnd = toLocalInputValue(new Date(now.getTime() + (service.durationMinutes ?? 60) * 60000));
-
   const body = `
     <a class="back-link" href="#/browse">&larr; Back to browse</a>
     <h1 class="page-title">${escapeHtml(service.name)}</h1>
@@ -219,20 +208,15 @@ views.service = async (params, routeParams) => {
     <div class="panel">
       <h2>Book this service</h2>
       <div id="book-alert" class="alert error" role="alert" hidden></div>
+      <div id="slot-picker">
+        <p class="empty-state">Loading availability…</p>
+      </div>
       <form id="book-form" novalidate>
-        <div class="field">
-          <label for="b-start">Starts at</label>
-          <input id="b-start" type="datetime-local" value="${defaultStart}" required />
-        </div>
-        <div class="field">
-          <label for="b-end">Ends at</label>
-          <input id="b-end" type="datetime-local" value="${defaultEnd}" required />
-        </div>
         <div class="field">
           <label for="b-notes">Notes (optional)</label>
           <textarea id="b-notes" rows="2"></textarea>
         </div>
-        <button class="primary" type="submit" id="book-btn">${isSignedIn() ? 'Book now' : 'Sign in to book'}</button>
+        <button class="primary" type="submit" id="book-btn" disabled>${isSignedIn() ? 'Select a time above' : 'Sign in to book'}</button>
       </form>
     </div>
 
@@ -272,16 +256,78 @@ views.service = async (params, routeParams) => {
     </div>
   `;
 
-  const after = () => {
-    const startInput = document.getElementById('b-start');
-    const endInput = document.getElementById('b-end');
-    if (service.durationMinutes) {
-      startInput.addEventListener('change', () => {
-        if (!startInput.value) return;
-        const start = new Date(startInput.value);
-        endInput.value = toLocalInputValue(new Date(start.getTime() + service.durationMinutes * 60000));
-      });
+  let selectedSlot = null;
+
+  const renderSlotPicker = async () => {
+    const container = document.getElementById('slot-picker');
+    let days;
+    try {
+      days = await Api.getAvailableSlots(service.id, 14);
+    } catch (err) {
+      container.innerHTML = `<p class="empty-state">Couldn't load availability: ${escapeHtml(err.message)}</p>`;
+      return;
     }
+
+    const daysWithSlots = days.filter((d) => d.slots.length > 0);
+    if (daysWithSlots.length === 0) {
+      container.innerHTML = '<p class="empty-state">No available times in the next two weeks — contact the business directly.</p>';
+      return;
+    }
+
+    const dateLabel = (isoDate) => {
+      const d = new Date(`${isoDate}T00:00:00`);
+      return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    };
+    const timeLabel = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+    let activeDate = daysWithSlots[0].date;
+
+    const render = () => {
+      const active = daysWithSlots.find((d) => d.date === activeDate) ?? daysWithSlots[0];
+      container.innerHTML = `
+        <div class="slot-day-row" style="display:flex;gap:var(--space-1);overflow-x:auto;padding-bottom:var(--space-1)">
+          ${daysWithSlots
+            .map(
+              (d) => `<button type="button" class="btn-plain slot-day-btn" data-date="${d.date}" style="${
+                d.date === active.date ? 'font-weight:700;border-color:var(--color-primary)' : ''
+              }">${dateLabel(d.date)}</button>`,
+            )
+            .join('')}
+        </div>
+        <div class="slot-time-row" style="display:flex;flex-wrap:wrap;gap:var(--space-1);margin-top:var(--space-2)">
+          ${active.slots
+            .map(
+              (s) => `<button type="button" class="btn-plain slot-time-btn" data-starts="${s.startsAt}" data-ends="${s.endsAt}" style="${
+                selectedSlot && selectedSlot.startsAt === s.startsAt ? 'font-weight:700;border-color:var(--color-primary)' : ''
+              }">${timeLabel(s.startsAt)}</button>`,
+            )
+            .join('')}
+        </div>
+      `;
+
+      container.querySelectorAll('.slot-day-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          activeDate = btn.dataset.date;
+          render();
+        });
+      });
+
+      container.querySelectorAll('.slot-time-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          selectedSlot = { startsAt: btn.dataset.starts, endsAt: btn.dataset.ends };
+          const bookBtn = document.getElementById('book-btn');
+          bookBtn.disabled = false;
+          bookBtn.textContent = isSignedIn() ? 'Book now' : 'Sign in to book';
+          render();
+        });
+      });
+    };
+
+    render();
+  };
+
+  const after = () => {
+    renderSlotPicker();
 
     document.getElementById('call-business-btn').addEventListener('click', () => {
       if (!isSignedIn()) {
@@ -361,18 +407,28 @@ views.service = async (params, routeParams) => {
       const alertBox = document.getElementById('book-alert');
       const btn = document.getElementById('book-btn');
       alertBox.hidden = true;
+
+      if (!selectedSlot) {
+        alertBox.textContent = 'Choose an available time above first.';
+        alertBox.hidden = false;
+        return;
+      }
+
       btn.disabled = true;
       btn.textContent = 'Booking…';
 
       try {
-        const startsAt = new Date(startInput.value).toISOString();
-        const endsAt = new Date(endInput.value).toISOString();
         const idempotencyKey =
           window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
         await Api.createBooking(
           service.tenantId,
-          { serviceId: service.id, startsAt, endsAt, notes: document.getElementById('b-notes').value.trim() || undefined },
+          {
+            serviceId: service.id,
+            startsAt: selectedSlot.startsAt,
+            endsAt: selectedSlot.endsAt,
+            notes: document.getElementById('b-notes').value.trim() || undefined,
+          },
           idempotencyKey,
         );
 
@@ -382,6 +438,11 @@ views.service = async (params, routeParams) => {
         alertBox.hidden = false;
         btn.disabled = false;
         btn.textContent = 'Book now';
+        // The slot may have just been taken by someone else -- refresh
+        // the picker so the customer sees current availability rather
+        // than retrying the same now-stale slot.
+        selectedSlot = null;
+        renderSlotPicker();
       }
     });
   };

@@ -41,6 +41,12 @@ export interface DiscoveredServiceDetail extends DiscoveredService {
   blockedTimes: BlockedWindow[];
 }
 
+export interface DaySlots {
+  date: string;
+  slots: { startsAt: string; endsAt: string }[];
+}
+
+
 /**
  * Unauthenticated, cross-tenant browse and detail. Relies entirely on
  * the public-read RLS policies added in migration 008 — this service
@@ -153,6 +159,93 @@ export class DiscoveryService {
         endsAt: r.ends_at as string,
       })),
     };
+  }
+
+  /**
+   * Real slot computation, replacing the earlier approach of just
+   * showing business hours as text and letting the customer type any
+   * start/end time. For each day in the requested window: take the
+   * service's weekly availability windows (getServiceDetail's same
+   * rule/blocked-time lookup), step through them in service-duration
+   * increments, and drop any candidate slot that overlaps a blocked
+   * window or an existing non-cancelled booking. The booking check
+   * needs the booking table's tenant-scoped RLS policy to actually
+   * see rows, so unlike the rest of this (deliberately anonymous,
+   * cross-tenant) service, it runs through withTenant() -- safe here
+   * because tenantId itself isn't secret (it's already returned by
+   * getServiceDetail) and only aggregate free/busy is exposed, never
+   * the booking rows themselves (no customer identity, no notes).
+   */
+  async getAvailableSlots(serviceId: string, days: number): Promise<DaySlots[]> {
+    const service = await this.getServiceDetail(serviceId);
+    const durationMinutes = service.durationMinutes ?? 60;
+    const durationMs = durationMinutes * 60_000;
+
+    const now = new Date();
+    const rangeEnd = new Date(now);
+    rangeEnd.setDate(rangeEnd.getDate() + days);
+
+    const blockedWindows = service.blockedTimes.map((b) => ({
+      start: new Date(b.startsAt).getTime(),
+      end: new Date(b.endsAt).getTime(),
+    }));
+
+    const bookedWindows = await this.db.withTenant(service.tenantId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT starts_at, ends_at FROM booking
+         WHERE service_id = $1 AND status NOT IN ('cancelled', 'no_show')
+           AND ends_at > $2 AND starts_at < $3`,
+        [serviceId, now.toISOString(), rangeEnd.toISOString()],
+      );
+      return rows.map((r: Record<string, unknown>) => ({
+        start: new Date(r.starts_at as string).getTime(),
+        end: new Date(r.ends_at as string).getTime(),
+      }));
+    });
+
+    const busyWindows = [...blockedWindows, ...bookedWindows];
+    const overlaps = (slotStart: number, slotEnd: number) =>
+      busyWindows.some((w) => slotStart < w.end && slotEnd > w.start);
+
+    const result: DaySlots[] = [];
+    for (let offset = 0; offset < days; offset += 1) {
+      const day = new Date(now);
+      day.setDate(day.getDate() + offset);
+      day.setHours(0, 0, 0, 0);
+      const dayOfWeek = day.getDay();
+
+      const windowsForDay = service.availability.filter((w) => w.dayOfWeek === dayOfWeek);
+      const slots: { startsAt: string; endsAt: string }[] = [];
+
+      for (const window of windowsForDay) {
+        const [startHour, startMinute] = window.startTime.split(':').map(Number);
+        const [endHour, endMinute] = window.endTime.split(':').map(Number);
+        const windowStart = new Date(day);
+        windowStart.setHours(startHour, startMinute, 0, 0);
+        const windowEnd = new Date(day);
+        windowEnd.setHours(endHour, endMinute, 0, 0);
+
+        for (
+          let slotStart = windowStart.getTime();
+          slotStart + durationMs <= windowEnd.getTime();
+          slotStart += durationMs
+        ) {
+          const slotEnd = slotStart + durationMs;
+          if (slotStart <= now.getTime()) {
+            continue;
+          }
+          if (overlaps(slotStart, slotEnd)) {
+            continue;
+          }
+          slots.push({ startsAt: new Date(slotStart).toISOString(), endsAt: new Date(slotEnd).toISOString() });
+        }
+      }
+
+      slots.sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+      result.push({ date: day.toISOString().slice(0, 10), slots });
+    }
+
+    return result;
   }
 }
 
