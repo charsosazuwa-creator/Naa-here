@@ -59,6 +59,89 @@ async function serviceById(serviceId) {
 const views = {};
 
 // ---------------------------------------------------------------------
+// Home: landing page with a hero, category shortcuts, a handful of
+// currently-published services, and the markets we operate in. Not
+// the default route (that's still Browse) — reached via the logo in
+// the header, or directly at #/home.
+// ---------------------------------------------------------------------
+views.home = async () => {
+  let popular = [];
+  try {
+    popular = (await Api.discoverServices('')).slice(0, 4);
+  } catch {
+    popular = [];
+  }
+  popular.forEach((s) => {
+    state.serviceCache[s.id] = s;
+  });
+
+  const CATEGORY_CARDS = [
+    { icon: '\u2702\ufe0f', value: 'barber_salon', label: 'Barber & Salon' },
+    { icon: '\ud83c\udfe0', value: 'accommodation', label: 'Accommodation' },
+    { icon: '\ud83d\udd27', value: 'artisan', label: 'Artisan & on-demand jobs' },
+  ];
+
+  const body = `
+    <section class="hero">
+      <h1>Find and book trusted local services.</h1>
+      <p class="sub">Naa here connects you with verified salons, barbers, artisans, and accommodation
+        providers across Nigeria, Kenya, Ghana, and South Africa. Book online, pay the provider directly \u2014
+        cash, mobile money, or bank transfer.</p>
+      <div class="hero-actions">
+        <a class="btn-hero primary" href="#/browse">Browse services</a>
+        <a class="btn-hero secondary" href="../auth/signup-provider.html">List your business</a>
+      </div>
+    </section>
+
+    <section class="home-section">
+      <h2>Browse by category</h2>
+      <div class="category-grid">
+        ${CATEGORY_CARDS.map(
+          (c) => `
+          <a class="category-card" href="#/browse?category=${c.value}">
+            <span class="icon">${c.icon}</span>
+            <span>${escapeHtml(c.label)}</span>
+          </a>`,
+        ).join('')}
+      </div>
+    </section>
+
+    ${
+      popular.length
+        ? `<section class="home-section">
+      <h2>Popular right now</h2>
+      <div class="service-grid">
+        ${popular
+          .map(
+            (s) => `
+          <a class="service-card" href="#/service/${s.id}">
+            <div class="name">${escapeHtml(s.name)}</div>
+            <div class="tenant">${escapeHtml(s.tenantName)}${s.location ? ` \u00b7 ${escapeHtml(s.location.city)}, ${escapeHtml(s.location.countryCode)}` : ''}</div>
+            <div class="price">${formatMoney(s.priceMinorUnits, s.currencyCode)}</div>
+            <div class="meta">${escapeHtml(s.categoryName)}${s.durationMinutes ? ` \u00b7 ${s.durationMinutes} min` : ''}</div>
+          </a>`,
+          )
+          .join('')}
+      </div>
+    </section>`
+        : ''
+    }
+
+    <section class="home-section">
+      <h2>Where we operate</h2>
+      <div class="markets-row">
+        <span>\ud83c\uddf3\ud83c\uddec Nigeria</span>
+        <span>\ud83c\uddf0\ud83c\uddea Kenya</span>
+        <span>\ud83c\uddec\ud83c\udded Ghana</span>
+        <span>\ud83c\uddff\ud83c\udde6 South Africa</span>
+      </div>
+    </section>
+  `;
+
+  return { title: 'Naa here', body };
+};
+
+// ---------------------------------------------------------------------
 // Browse: filterable list of every published service, across tenants.
 // ---------------------------------------------------------------------
 views.browse = async (params) => {
