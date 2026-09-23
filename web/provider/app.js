@@ -50,9 +50,15 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+const CURRENCY_SYMBOLS = { NGN: '₦', KES: 'KSh ', GHS: 'GH₵', ZAR: 'R', RWF: 'RWF ' };
+
 function formatMoney(amountMinorUnits, currencyCode) {
   if (amountMinorUnits === undefined || amountMinorUnits === null) return '—';
-  return `${(Number(amountMinorUnits) / 100).toFixed(2)} ${currencyCode ?? ''}`.trim();
+  const amount = (Number(amountMinorUnits) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const code = currencyCode ?? '';
+  const symbol = CURRENCY_SYMBOLS[code];
+  if (symbol) return `${symbol}${amount}`;
+  return `${amount} ${code}`.trim();
 }
 
 function formatDate(iso) {
@@ -131,6 +137,7 @@ views.tenants = async () => {
             <option value="KE">Kenya</option>
             <option value="GH">Ghana</option>
             <option value="ZA">South Africa</option>
+            <option value="RW">Rwanda</option>
           </select>
         </div>
         <button class="primary" type="submit">Create business</button>
@@ -343,6 +350,7 @@ views.locations = async () => {
             <option value="KE">Kenya</option>
             <option value="GH">Ghana</option>
             <option value="ZA">South Africa</option>
+            <option value="RW">Rwanda</option>
           </select>
         </div>
         <div class="field"><label for="l-lat">Latitude (optional)</label><input id="l-lat" type="number" step="any" /></div>
@@ -512,7 +520,7 @@ views.services = async () => {
         <div class="field">
           <label for="s-currency">Currency</label>
           <select id="s-currency" class="tenant-select">
-            <option>NGN</option><option>KES</option><option>GHS</option><option>ZAR</option>
+            <option>NGN</option><option>KES</option><option>GHS</option><option>ZAR</option><option>RWF</option>
           </select>
         </div>
         <div class="field"><label for="s-duration">Duration (minutes)</label><input id="s-duration" type="number" min="1" value="30" /></div>
@@ -1119,7 +1127,7 @@ views['job-requests'] = async () => {
               <div class="field"><label for="q-amount">Amount (minor units)</label><input id="q-amount" type="number" min="0" required /></div>
               <div class="field">
                 <label for="q-currency">Currency</label>
-                <select id="q-currency" class="tenant-select"><option>NGN</option><option>KES</option><option>GHS</option><option>ZAR</option></select>
+                <select id="q-currency" class="tenant-select"><option>NGN</option><option>KES</option><option>GHS</option><option>ZAR</option><option>RWF</option></select>
               </div>
               <div class="field"><label for="q-start">Proposed start</label><input id="q-start" type="datetime-local" required /></div>
               <div class="field"><label for="q-end">Proposed end</label><input id="q-end" type="datetime-local" required /></div>
@@ -1451,7 +1459,7 @@ views.payouts = async () => {
         <div class="field"><label for="p-amount">Amount (minor units)</label><input id="p-amount" type="number" min="1" required /></div>
         <div class="field">
           <label for="p-currency">Currency</label>
-          <select id="p-currency" class="tenant-select"><option>NGN</option><option>KES</option><option>GHS</option><option>ZAR</option></select>
+          <select id="p-currency" class="tenant-select"><option>NGN</option><option>KES</option><option>GHS</option><option>ZAR</option><option>RWF</option></select>
         </div>
         <button class="primary" type="submit">Request payout</button>
       </form>

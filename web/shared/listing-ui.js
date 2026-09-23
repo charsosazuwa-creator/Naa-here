@@ -17,9 +17,15 @@
     return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
+  const CURRENCY_SYMBOLS = { NGN: '₦', KES: 'KSh ', GHS: 'GH₵', ZAR: 'R', RWF: 'RWF ' };
+
   function formatMoney(amountMinorUnits, currencyCode) {
     if (amountMinorUnits === undefined || amountMinorUnits === null) return null;
-    return `${(Number(amountMinorUnits) / 100).toFixed(2)} ${currencyCode ?? ''}`.trim();
+    const amount = (Number(amountMinorUnits) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const code = currencyCode ?? '';
+    const symbol = CURRENCY_SYMBOLS[code];
+    if (symbol) return `${symbol}${amount}`;
+    return `${amount} ${code}`.trim();
   }
 
   function priceLabel(listing) {
@@ -83,6 +89,7 @@
               <option ${l.currencyCode === 'KES' ? 'selected' : ''}>KES</option>
               <option ${l.currencyCode === 'GHS' ? 'selected' : ''}>GHS</option>
               <option ${l.currencyCode === 'ZAR' ? 'selected' : ''}>ZAR</option>
+              <option ${l.currencyCode === 'RWF' ? 'selected' : ''}>RWF</option>
             </select>
           </div>
         </div>

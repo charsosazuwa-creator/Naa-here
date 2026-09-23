@@ -26,6 +26,7 @@ const COUNTRY_OPTIONS = [
   { value: 'KE', label: 'Kenya' },
   { value: 'GH', label: 'Ghana' },
   { value: 'ZA', label: 'South Africa' },
+  { value: 'RW', label: 'Rwanda' },
 ];
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -34,9 +35,15 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+const CURRENCY_SYMBOLS = { NGN: '₦', KES: 'KSh ', GHS: 'GH₵', ZAR: 'R', RWF: 'RWF ' };
+
 function formatMoney(amountMinorUnits, currencyCode) {
   if (amountMinorUnits === undefined || amountMinorUnits === null) return '—';
-  return `${(Number(amountMinorUnits) / 100).toFixed(2)} ${currencyCode ?? ''}`.trim();
+  const amount = (Number(amountMinorUnits) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const code = currencyCode ?? '';
+  const symbol = CURRENCY_SYMBOLS[code];
+  if (symbol) return `${symbol}${amount}`;
+  return `${amount} ${code}`.trim();
 }
 
 function formatDateTime(iso) {

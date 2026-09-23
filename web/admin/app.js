@@ -152,11 +152,16 @@
     });
   }
 
+  const CURRENCY_SYMBOLS = { NGN: '₦', KES: 'KSh ', GHS: 'GH₵', ZAR: 'R', RWF: 'RWF ' };
+
   function priceLabel(l) {
     if (l.priceType === 'contact') return 'Contact for price';
     if (l.priceType === 'negotiable') return 'Negotiable';
     if (l.priceMinorUnits === null || l.priceMinorUnits === undefined) return '—';
-    const amount = `${(Number(l.priceMinorUnits) / 100).toFixed(2)} ${l.currencyCode ?? ''}`.trim();
+    const formatted = (Number(l.priceMinorUnits) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const code = l.currencyCode ?? '';
+    const symbol = CURRENCY_SYMBOLS[code];
+    const amount = symbol ? `${symbol}${formatted}` : `${formatted} ${code}`.trim();
     return l.priceType === 'starting_from' ? `From ${amount}` : amount;
   }
 
