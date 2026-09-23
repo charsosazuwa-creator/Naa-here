@@ -142,7 +142,12 @@ views.browse = async (params) => {
           q: document.getElementById('f-search').value.trim(),
         }).filter(([, v]) => v),
       ).toString();
-      window.location.hash = `#/browse${q ? `?${q}` : ''}`;
+      const newHash = `#/browse${q ? `?${q}` : ''}`;
+      if (window.location.hash === newHash) {
+        renderRoute();
+      } else {
+        window.location.hash = newHash;
+      }
     });
   };
 

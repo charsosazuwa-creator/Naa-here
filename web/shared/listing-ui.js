@@ -647,7 +647,12 @@
             radius: filters.radiusKm || '',
           }).filter(([, v]) => v),
         ).toString();
-        window.location.hash = `#/${hashBase}${q ? `?${q}` : ''}`;
+        const newHash = `#/${hashBase}${q ? `?${q}` : ''}`;
+        if (window.location.hash === newHash) {
+          window.dispatchEvent(new HashChangeEvent('hashchange'));
+        } else {
+          window.location.hash = newHash;
+        }
       });
 
       document.querySelector('.mf-near-me').addEventListener('click', () => {
@@ -671,7 +676,12 @@
                 radius: filters.radiusKm || '',
               }).filter(([, v]) => v),
             ).toString();
-            window.location.hash = `#/${hashBase}?${q}`;
+            const newHash = `#/${hashBase}?${q}`;
+            if (window.location.hash === newHash) {
+              window.dispatchEvent(new HashChangeEvent('hashchange'));
+            } else {
+              window.location.hash = newHash;
+            }
           },
           () => window.alert('Could not get your location — check your browser/device permissions.'),
         );
