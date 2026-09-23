@@ -1092,8 +1092,30 @@ async function renderRoute() {
   }
 }
 
+function initNavToggle() {
+  const toggle = document.getElementById('nav-toggle');
+  const nav = document.getElementById('customer-nav');
+  if (!toggle || !nav) return;
+  const closeNav = () => {
+    nav.classList.remove('open');
+    toggle.setAttribute('aria-expanded', 'false');
+  };
+  toggle.addEventListener('click', () => {
+    const open = nav.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  nav.addEventListener('click', (e) => {
+    if (e.target.tagName === 'A') closeNav();
+  });
+  document.addEventListener('click', (e) => {
+    if (!nav.contains(e.target) && !toggle.contains(e.target)) closeNav();
+  });
+  window.addEventListener('hashchange', closeNav);
+}
+
 function init() {
   renderAuthArea();
+  initNavToggle();
   if (isSignedIn()) {
     CallUI.init({
       getAccessToken,
