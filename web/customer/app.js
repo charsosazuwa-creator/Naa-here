@@ -1117,7 +1117,7 @@ function parseRoute() {
   const hash = window.location.hash.replace(/^#\/?/, '');
   const [pathPart, queryPart] = hash.split('?');
   const segments = pathPart.split('/').filter(Boolean);
-  const section = segments[0] || 'browse';
+  const section = segments[0] || 'home';
   const routeParams = segments.slice(1);
   const params = new URLSearchParams(queryPart || '');
   return { section, routeParams, params };
@@ -1153,7 +1153,7 @@ function renderAuthArea() {
     userNameEl.textContent = '';
     authBtn.textContent = 'Sign in';
     authBtn.onclick = () => {
-      window.location.href = `login.html?next=${encodeURIComponent(window.location.hash || '#/browse')}`;
+      window.location.href = `login.html?next=${encodeURIComponent(window.location.hash || '#/home')}`;
     };
   }
 }
