@@ -75,10 +75,12 @@ body.no-tenant main.content {
 .empty-state { color: var(--color-text-muted); font-style: italic; padding: var(--space-4) 0; }
 
 /* Mobile nav: hamburger toggle + dropdown panel.
-   Desktop keeps the plain horizontal nav; below 760px the links move
-   into a toggled dropdown so they never overflow the fixed topbar. */
+   The nav collapses into this hamburger + dropdown at every screen
+   size, not just phone width -- with nine items (Home, Browse,
+   Marketplace, My bookings, Job requests, My Listings, My Disputes,
+   Messages, Help) it crowds even a desktop-width header. */
 .nav-toggle {
-  display: none;
+  display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 4px;
@@ -96,34 +98,37 @@ body.no-tenant main.content {
   background: var(--color-text);
   border-radius: 2px;
 }
-
-@media (max-width: 760px) {
-  .nav-toggle {
-    display: flex;
-  }
+.customer-nav {
+  display: none;
+  position: absolute;
+  top: 56px;
+  left: 0;
+  right: 0;
+  flex-direction: column;
+  gap: 0;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+  padding: var(--space-2) var(--space-4);
+  z-index: 9;
+}
+.customer-nav.open {
+  display: flex;
+}
+.customer-nav a {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.customer-nav a:last-child {
+  border-bottom: none;
+}
+@media (min-width: 761px) {
   .customer-nav {
-    display: none;
-    position: absolute;
-    top: 56px;
-    left: 0;
-    right: 0;
-    flex-direction: column;
-    gap: 0;
-    background: var(--color-bg);
-    border-bottom: 1px solid var(--color-border);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
-    padding: var(--space-2) var(--space-4);
-    z-index: 9;
-  }
-  .customer-nav.open {
-    display: flex;
-  }
-  .customer-nav a {
-    padding: var(--space-3) 0;
-    border-bottom: 1px solid var(--color-border);
-  }
-  .customer-nav a:last-child {
-    border-bottom: none;
+    max-width: 260px;
+    left: auto;
+    right: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
   }
 }
 
