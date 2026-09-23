@@ -14,6 +14,9 @@
       <img src="../auth/assets/logo.png" alt="" />
       <span>- Provider portal</span>
     </div>
+    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Menu" aria-expanded="false" aria-controls="sidebar">
+      <span></span><span></span><span></span>
+    </button>
     <div class="topbar-right">
       <select id="tenant-select" class="tenant-select" hidden></select>
       <span id="user-name" style="font-size:0.88rem;color:var(--color-text-muted)"></span>
@@ -24,6 +27,7 @@
   <aside class="sidebar" id="sidebar" hidden>
     <nav id="sidebar-nav"></nav>
   </aside>
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
   <main class="content" id="view"></main>
 </div>

@@ -107,6 +107,59 @@ main.content {
 body.no-tenant main.content { margin-left: 0; max-width: 480px; margin-left: auto; margin-right: auto; }
 body.no-tenant .sidebar { display: none; }
 
+/* Sidebar toggle: hidden on desktop (sidebar is always visible there,
+ * pushing main.content over as it always has). Below 760px the
+ * sidebar becomes a slide-in drawer instead, since a fixed 220px
+ * column left main.content squeezed into a sliver on phone width. */
+.sidebar-toggle {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.sidebar-toggle span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: var(--color-text);
+  border-radius: 2px;
+}
+.sidebar-backdrop { display: none; }
+
+@media (max-width: 760px) {
+  body:not(.no-tenant) .sidebar-toggle {
+    display: flex;
+  }
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    z-index: 15;
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.15);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .sidebar-backdrop.open {
+    display: block;
+    position: fixed;
+    top: 56px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 14;
+  }
+  main.content {
+    margin-left: 0;
+  }
+}
+
 h1.page-title { font-size: 1.4rem; margin: 0 0 var(--space-4); }
 
 .panel {
@@ -115,6 +168,7 @@ h1.page-title { font-size: 1.4rem; margin: 0 0 var(--space-4); }
   border-radius: var(--radius);
   padding: var(--space-4);
   margin-bottom: var(--space-4);
+  overflow-x: auto;
 }
 
 .panel h2 { font-size: 1.05rem; margin: 0 0 var(--space-3); }

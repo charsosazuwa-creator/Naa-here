@@ -2368,6 +2368,28 @@ async function renderRoute() {
   }
 }
 
+function initSidebarToggle() {
+  const toggle = document.getElementById('sidebar-toggle');
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (!toggle || !sidebar || !backdrop) return;
+  const closeSidebar = () => {
+    sidebar.classList.remove('open');
+    backdrop.classList.remove('open');
+    toggle.setAttribute('aria-expanded', 'false');
+  };
+  toggle.addEventListener('click', () => {
+    const open = sidebar.classList.toggle('open');
+    backdrop.classList.toggle('open', open);
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  backdrop.addEventListener('click', closeSidebar);
+  sidebar.addEventListener('click', (e) => {
+    if (e.target.tagName === 'A') closeSidebar();
+  });
+  window.addEventListener('hashchange', closeSidebar);
+}
+
 async function init() {
   if (!isSignedIn()) {
     window.location.href = 'login.html';
@@ -2381,6 +2403,8 @@ async function init() {
     clearSession();
     window.location.href = 'login.html';
   });
+
+  initSidebarToggle();
 
   CallUI.init({
     getAccessToken,
