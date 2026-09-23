@@ -89,7 +89,6 @@
               <option ${l.currencyCode === 'KES' ? 'selected' : ''}>KES</option>
               <option ${l.currencyCode === 'GHS' ? 'selected' : ''}>GHS</option>
               <option ${l.currencyCode === 'ZAR' ? 'selected' : ''}>ZAR</option>
-              <option ${l.currencyCode === 'RWF' ? 'selected' : ''}>RWF</option>
             </select>
           </div>
         </div>

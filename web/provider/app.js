@@ -137,7 +137,6 @@ views.tenants = async () => {
             <option value="KE">Kenya</option>
             <option value="GH">Ghana</option>
             <option value="ZA">South Africa</option>
-            <option value="RW">Rwanda</option>
           </select>
         </div>
         <button class="primary" type="submit">Create business</button>
@@ -350,7 +349,6 @@ views.locations = async () => {
             <option value="KE">Kenya</option>
             <option value="GH">Ghana</option>
             <option value="ZA">South Africa</option>
-            <option value="RW">Rwanda</option>
           </select>
         </div>
         <div class="field"><label for="l-lat">Latitude (optional)</label><input id="l-lat" type="number" step="any" /></div>
@@ -520,7 +518,7 @@ views.services = async () => {
         <div class="field">
           <label for="s-currency">Currency</label>
           <select id="s-currency" class="tenant-select">
-            <option>NGN</option><option>KES</option><option>GHS</option><option>ZAR</option><option>RWF</option>
+            <option>NGN</option><option>KES</option><option>GHS</option><option>ZAR</option>
           </select>
         </div>
         <div class="field"><label for="s-duration">Duration (minutes)</label><input id="s-duration" type="number" min="1" value="30" /></div>
@@ -1127,7 +1125,7 @@ views['job-requests'] = async () => {
               <div class="field"><label for="q-amount">Amount (minor units)</label><input id="q-amount" type="number" min="0" required /></div>
               <div class="field">
                 <label for="q-currency">Currency</label>
-                <select id="q-currency" class="tenant-select"><option>NGN</option><option>KES</option><option>GHS</option><option>ZAR</option><option>RWF</option></select>
+                <select id="q-currency" class="tenant-select"><option>NGN</option><option>KES</option><option>GHS</option><option>ZAR</option></select>
               </div>
               <div class="field"><label for="q-start">Proposed start</label><input id="q-start" type="datetime-local" required /></div>
               <div class="field"><label for="q-end">Proposed end</label><input id="q-end" type="datetime-local" required /></div>
@@ -1459,7 +1457,7 @@ views.payouts = async () => {
         <div class="field"><label for="p-amount">Amount (minor units)</label><input id="p-amount" type="number" min="1" required /></div>
         <div class="field">
           <label for="p-currency">Currency</label>
-          <select id="p-currency" class="tenant-select"><option>NGN</option><option>KES</option><option>GHS</option><option>ZAR</option><option>RWF</option></select>
+          <select id="p-currency" class="tenant-select"><option>NGN</option><option>KES</option><option>GHS</option><option>ZAR</option></select>
         </div>
         <button class="primary" type="submit">Request payout</button>
       </form>

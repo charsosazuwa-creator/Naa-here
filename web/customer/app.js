@@ -26,7 +26,6 @@ const COUNTRY_OPTIONS = [
   { value: 'KE', label: 'Kenya' },
   { value: 'GH', label: 'Ghana' },
   { value: 'ZA', label: 'South Africa' },
-  { value: 'RW', label: 'Rwanda' },
 ];
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
