@@ -1019,11 +1019,12 @@ views.bookings = async () => {
             .map((t) => `<button class="small" data-action="transition" data-id="${b.id}" data-status="${t.to}">${t.label}</button>`)
             .join('');
           return `
-      <tr>
+      <tr data-booking-id="${b.id}">
         <td>${formatDate(b.startsAt)}</td>
         <td>${formatDate(b.endsAt)}</td>
         <td>${badge(b.status)}</td>
         <td><div class="actions-row">${actions || '—'}
+          ${b.status === 'in_progress' ? `<button class="small primary" data-action="track" data-id="${b.id}">Track</button>` : ''}
           <button class="small" data-action="dispute" data-id="${b.id}">Raise dispute</button>
         </div></td>
       </tr>`;
@@ -1039,10 +1040,23 @@ views.bookings = async () => {
         <tbody>${rows}</tbody>
       </table>
     </div>
+    <div id="tracking-panel"></div>
     <div id="dispute-panel"></div>
   `;
 
   const after = () => {
+    document.querySelectorAll('[data-action="track"]').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        const bookingId = btn.dataset.id;
+        stopProviderTrackingRealtime();
+        const panel = document.getElementById('tracking-panel');
+        providerTrackingState.session = LiveTracking.open(panel, {
+          bookingId,
+          getAccessToken,
+          getStatus: () => Api.getTrackingStatus(bookingId),
+        });
+      }),
+    );
     document.querySelectorAll('[data-action="transition"]').forEach((btn) =>
       btn.addEventListener('click', () =>
         runAction(btn, () => Api.transitionBooking(state.tenantId, btn.dataset.id, { status: btn.dataset.status })),
@@ -1246,6 +1260,14 @@ views.disputes = async () => {
 // ---------------------------------------------------------------------
 
 const providerMessagingState = { conn: null, conversationId: null };
+const providerTrackingState = { session: null };
+
+function stopProviderTrackingRealtime() {
+  if (providerTrackingState.session) {
+    providerTrackingState.session.close();
+    providerTrackingState.session = null;
+  }
+}
 
 function stopProviderMessagingRealtime() {
   if (providerMessagingState.conn) {
@@ -2435,6 +2457,7 @@ async function init() {
   window.addEventListener('hashchange', () => {
     stopGroupChatPolling();
     stopProviderMessagingRealtime();
+    stopProviderTrackingRealtime();
     renderRoute();
   });
   await renderRoute();

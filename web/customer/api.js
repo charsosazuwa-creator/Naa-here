@@ -98,6 +98,7 @@ const Api = {
   myBookings: () => apiRequest('/bookings/mine', { auth: true }),
   cancelBooking: (bookingId, reason) =>
     apiRequest(`/bookings/${bookingId}/cancel`, { method: 'PATCH', body: { reason }, auth: true }),
+  getTrackingStatus: (bookingId) => apiRequest(`/bookings/${bookingId}/tracking-status`, { auth: true }),
 
   // job requests (the "artisan flow" — see job.controller.ts): a
   // customer describes a job against a specific service, the

@@ -306,6 +306,25 @@ button.small:disabled { opacity: 0.5; cursor: not-allowed; }
   color: var(--color-primary);
 }
 
+/* Live location tracking (build-scope doc) -- web/shared/live-tracking.js. */
+.tracking-panel .tracking-status {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-2);
+}
+.tracking-map {
+  height: 280px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin-bottom: var(--space-3);
+}
+.tracking-controls { margin-bottom: var(--space-2); }
+.tracking-hint {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
 /* Voice calling (User Stories 1-3's calling halves) -- web/shared/call-ui.js. */
 .call-overlay {
   position: fixed;

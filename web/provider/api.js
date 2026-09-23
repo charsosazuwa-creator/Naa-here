@@ -145,6 +145,7 @@ const Api = {
   listBookings: (tenantId) => apiRequest(`/tenants/${tenantId}/bookings`),
   transitionBooking: (tenantId, bookingId, payload) =>
     apiRequest(`/tenants/${tenantId}/bookings/${bookingId}/status`, { method: 'PATCH', body: payload }),
+  getTrackingStatus: (bookingId) => apiRequest(`/bookings/${bookingId}/tracking-status`),
 
   // artisan job requests
   listJobRequests: (tenantId) => apiRequest(`/tenants/${tenantId}/job-requests`),

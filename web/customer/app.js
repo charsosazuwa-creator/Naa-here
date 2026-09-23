@@ -584,6 +584,7 @@ views.bookings = async () => {
                 <td>${badge(b.status)}</td>
                 <td>
                   <div class="actions-row">
+                    ${b.status === 'in_progress' ? '<button class="small primary" data-action="track">Track</button>' : ''}
                     ${canCancel ? '<button class="small danger" data-action="cancel">Cancel</button>' : ''}
                     <button class="small" data-action="dispute">Report a problem</button>
                   </div>
@@ -595,6 +596,7 @@ views.bookings = async () => {
         </tbody>
       </table>
     </div>
+    <div id="tracking-panel"></div>
     <div id="dispute-panel"></div>
   `;
 
@@ -607,6 +609,19 @@ views.bookings = async () => {
           await Api.cancelBooking(bookingId);
         }),
       );
+    });
+
+    document.querySelectorAll('[data-action="track"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const bookingId = btn.closest('tr').dataset.bookingId;
+        stopTrackingRealtime();
+        const panel = document.getElementById('tracking-panel');
+        trackingUIState.session = LiveTracking.open(panel, {
+          bookingId,
+          getAccessToken,
+          getStatus: () => Api.getTrackingStatus(bookingId),
+        });
+      });
     });
 
     // US-056: report a problem with this booking (raise a dispute).
@@ -814,6 +829,14 @@ views['job-requests'] = async () => {
 // ---------------------------------------------------------------------
 
 const messagingState = { conn: null, conversationId: null };
+const trackingUIState = { session: null };
+
+function stopTrackingRealtime() {
+  if (trackingUIState.session) {
+    trackingUIState.session.close();
+    trackingUIState.session = null;
+  }
+}
 
 function stopMessagingRealtime() {
   if (messagingState.conn) {
@@ -1233,6 +1256,7 @@ function init() {
   }
   window.addEventListener('hashchange', () => {
     stopMessagingRealtime();
+    stopTrackingRealtime();
     renderRoute();
   });
   renderRoute();
