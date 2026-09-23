@@ -83,8 +83,8 @@ views.home = async () => {
 
   const body = `
     <section class="hero">
-      <h1>Find and book trusted local services.</h1>
-      <p class="sub">Naa here connects you with verified salons, barbers, artisans, and accommodation
+      <h1>Welcome to naahere.com</h1>
+      <p class="sub">Find and book trusted local salons, barbers, artisans, and accommodation
         providers across Nigeria, Kenya, Ghana, and South Africa. Book online, pay the provider directly \u2014
         cash, mobile money, or bank transfer.</p>
       <div class="hero-actions">
