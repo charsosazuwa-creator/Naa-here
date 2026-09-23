@@ -1147,7 +1147,17 @@ function renderAuthArea() {
       clearSession();
       state.user = null;
       renderAuthArea();
-      renderRoute();
+      // Send the user back to Home after signing out, rather than leaving
+      // them on a page (My bookings, Messages, etc.) that assumed they
+      // were signed in. Same same-hash fallback as the search fix: if
+      // they were already on Home, the hash won't change on its own, so
+      // re-render directly instead of waiting on a hashchange that will
+      // never fire.
+      if (window.location.hash === '#/home') {
+        renderRoute();
+      } else {
+        window.location.hash = '#/home';
+      }
     };
   } else {
     userNameEl.textContent = '';
