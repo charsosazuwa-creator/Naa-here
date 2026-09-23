@@ -208,18 +208,36 @@ body.no-tenant main.content {
 .category-card:hover { background: var(--color-surface); }
 .category-card .icon { font-size: 1.4rem; }
 
+.markets-hint {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin: -4px 0 var(--space-2);
+}
 .markets-row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
 }
-.markets-row span {
+.market-chip {
   font-size: 0.85rem;
-  color: var(--color-text-muted);
+  font-weight: 600;
+  color: var(--color-text);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 6px 12px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.market-chip:hover {
+  background: var(--color-bg);
+  border-color: var(--color-primary, var(--color-border));
+}
+.market-chip:active { transform: scale(0.97); }
+.market-chip:focus-visible {
+  outline: 2px solid var(--color-primary, currentColor);
+  outline-offset: 2px;
 }
 
 @media (max-width: 480px) {

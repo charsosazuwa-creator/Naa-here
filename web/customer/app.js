@@ -133,11 +133,12 @@ views.home = async () => {
 
     <section class="home-section">
       <h2>Where we operate</h2>
+      <p class="markets-hint">Tap a country to see services, providers, and pricing for that market.</p>
       <div class="markets-row">
-        <span>\ud83c\uddf3\ud83c\uddec Nigeria</span>
-        <span>\ud83c\uddf0\ud83c\uddea Kenya</span>
-        <span>\ud83c\uddec\ud83c\udded Ghana</span>
-        <span>\ud83c\uddff\ud83c\udde6 South Africa</span>
+        <a class="market-chip" href="#/browse?country=NG">\ud83c\uddf3\ud83c\uddec Nigeria</a>
+        <a class="market-chip" href="#/browse?country=KE">\ud83c\uddf0\ud83c\uddea Kenya</a>
+        <a class="market-chip" href="#/browse?country=GH">\ud83c\uddec\ud83c\udded Ghana</a>
+        <a class="market-chip" href="#/browse?country=ZA">\ud83c\uddff\ud83c\udde6 South Africa</a>
       </div>
     </section>
   `;
