@@ -93,6 +93,30 @@ export class ServiceCatalogueService {
     return rows.map((row) => ({ id: row.id, code: row.code, name: row.name }));
   }
 
+  /**
+   * The admin console's direct "add a category" action (the
+   * 'category.manage'-gated counterpart to resolveCategory() above,
+   * which a provider reaches indirectly by typing a new name into the
+   * "create service" form). Same upsert-by-code shape, but returns the
+   * full row rather than just an id, since the admin UI lists it
+   * straight back.
+   */
+  async createCategory(userId: string, name: string): Promise<ServiceCategory> {
+    const trimmed = (name ?? '').trim();
+    const code = slugify(trimmed);
+    if (!trimmed || !code) {
+      throw new BadRequestException('A category name is required.');
+    }
+
+    const [row] = await this.db.query<{ id: number; code: string; name: string }>(
+      `INSERT INTO service_category (code, name, created_by) VALUES ($1, $2, $3)
+       ON CONFLICT (code) DO UPDATE SET code = EXCLUDED.code
+       RETURNING id, code, name`,
+      [code, trimmed, userId],
+    );
+    return { id: row.id, code: row.code, name: row.name };
+  }
+
   async create(tenantId: string, createdBy: string, dto: CreateServiceDto): Promise<ServiceListing> {
     const categoryId = await this.resolveCategory(createdBy, { id: dto.categoryId, name: dto.categoryName });
 

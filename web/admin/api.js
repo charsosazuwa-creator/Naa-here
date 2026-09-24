@@ -127,4 +127,27 @@ const Api = {
       auth: true,
     });
   },
+  // Admin edit of a listing still sitting in the moderation queue, and
+  // per-image removal — see ListingAdminController's PATCH/DELETE routes.
+  editListing(listingId, patch) {
+    return apiRequest(`/admin/listings/${listingId}`, { method: 'PATCH', body: patch, auth: true });
+  },
+  deleteListingImage(listingId, imageId) {
+    return apiRequest(`/admin/listings/${listingId}/images/${imageId}`, { method: 'DELETE', auth: true });
+  },
+  // Category management (both lists are public GETs, no auth needed to
+  // read; the admin "add" actions require the 'category.manage' permission
+  // — see service-category.controller.ts / business-category.controller.ts).
+  listServiceCategories() {
+    return apiRequest('/service-categories', { auth: false });
+  },
+  createServiceCategory(name) {
+    return apiRequest('/service-categories', { method: 'POST', body: { name }, auth: true });
+  },
+  listBusinessCategories() {
+    return apiRequest('/business-categories', { auth: false });
+  },
+  createBusinessCategory(name) {
+    return apiRequest('/business-categories', { method: 'POST', body: { name }, auth: true });
+  },
 };

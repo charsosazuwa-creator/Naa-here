@@ -399,6 +399,78 @@ export class ListingService {
     }));
   }
 
+  /**
+   * Admin edit of a listing still sitting in the moderation queue --
+   * the "fix a typo before you approve it" counterpart to decide()
+   * just below. Deliberately narrower than the owner's update(): no
+   * ownership check (an admin isn't the owner), and restricted to
+   * 'pending_review' so this can't be used to silently rewrite a
+   * listing that's already published or otherwise out of the queue.
+   * Status/rejection_reason are left untouched -- unlike update(),
+   * this never needs to push a listing back into review, since it's
+   * already there.
+   */
+  async adminUpdate(adminUserId: string, listingId: string, dto: UpdateListingDto): Promise<ListingDetail> {
+    const [existing] = await this.db.query<ListingRow>(`SELECT * FROM listing WHERE id = $1`, [listingId]);
+    if (!existing) {
+      throw new NotFoundException('Listing not found.');
+    }
+    if (existing.status !== 'pending_review') {
+      throw new UnprocessableEntityException('Only a listing pending review can be edited here.');
+    }
+
+    const priceType = dto.priceType ?? existing.price_type;
+    const priceMinorUnits = dto.priceMinorUnits ?? existing.price_minor_units ?? undefined;
+    const currencyCode = dto.currencyCode ?? existing.currency_code ?? undefined;
+    this.assertPricing(priceType, priceMinorUnits, currencyCode);
+
+    const [row] = await this.db.query<ListingRow>(
+      `UPDATE listing SET
+         listing_type = $2, title = $3, category = $4, description = $5,
+         price_minor_units = $6, currency_code = $7, price_type = $8,
+         country_code = $9, location_text = $10, latitude = $11, longitude = $12,
+         contact_method = $13, contact_value = $14, updated_at = now()
+       WHERE id = $1
+       RETURNING *`,
+      [
+        listingId,
+        dto.listingType ?? existing.listing_type,
+        dto.title ?? existing.title,
+        dto.category ?? existing.category,
+        dto.description ?? existing.description,
+        priceMinorUnits ?? null,
+        currencyCode ?? null,
+        priceType,
+        dto.countryCode ?? existing.country_code,
+        dto.locationText ?? existing.location_text,
+        dto.latitude ?? existing.latitude,
+        dto.longitude ?? existing.longitude,
+        dto.contactMethod ?? existing.contact_method,
+        dto.contactValue ?? existing.contact_value,
+      ],
+    );
+
+    await this.audit.record({ actorUserId: adminUserId, action: 'listing.admin_update', targetType: 'listing', targetId: listingId });
+    return this.toDetail(row, await this.imagesFor(listingId));
+  }
+
+  /**
+   * Same "still pending review" gate as adminUpdate(), reused by
+   * ListingAdminController's image-removal route (which delegates the
+   * actual delete to ListingImageService.remove() itself, since that
+   * one lives in this module's own ListingImageService rather than
+   * being duplicated here).
+   */
+  async assertAdminEditable(listingId: string): Promise<void> {
+    const [existing] = await this.db.query<{ status: string }>(`SELECT status FROM listing WHERE id = $1`, [listingId]);
+    if (!existing) {
+      throw new NotFoundException('Listing not found.');
+    }
+    if (existing.status !== 'pending_review') {
+      throw new UnprocessableEntityException('Only a listing pending review can be edited here.');
+    }
+  }
+
   async decide(adminUserId: string, listingId: string, dto: DecideListingDto): Promise<ListingDetail> {
     const [existing] = await this.db.query<ListingRow>(`SELECT * FROM listing WHERE id = $1`, [listingId]);
     if (!existing) {

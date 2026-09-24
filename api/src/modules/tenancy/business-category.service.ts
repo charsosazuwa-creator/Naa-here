@@ -70,4 +70,27 @@ export class BusinessCategoryService {
     );
     return created.id;
   }
+
+  /**
+   * The admin console's direct "add a category" action (the
+   * 'category.manage'-gated counterpart to resolve() above, which a
+   * provider reaches indirectly by typing a new name into the
+   * "create business" form). Same upsert-by-code shape, but returns
+   * the full row rather than just an id.
+   */
+  async create(userId: string, name: string): Promise<BusinessCategory> {
+    const trimmed = (name ?? '').trim();
+    const code = slugify(trimmed);
+    if (!trimmed || !code) {
+      throw new Error('A category name is required.');
+    }
+
+    const [row] = await this.db.query<{ id: string; code: string; name: string }>(
+      `INSERT INTO business_category (code, name, created_by) VALUES ($1, $2, $3)
+       ON CONFLICT (code) DO UPDATE SET code = EXCLUDED.code
+       RETURNING id, code, name`,
+      [code, trimmed, userId],
+    );
+    return { id: row.id, code: row.code, name: row.name };
+  }
 }

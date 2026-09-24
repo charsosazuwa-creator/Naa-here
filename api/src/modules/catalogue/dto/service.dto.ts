@@ -43,3 +43,10 @@ export class UpdateServiceStatusDto {
   @IsIn(['draft', 'published', 'archived'])
   status!: 'draft' | 'published' | 'archived';
 }
+
+/** Admin console's "add a service category" action -- see migration 023's 'category.manage' permission. */
+export class CreateServiceCategoryDto {
+  @IsString()
+  @MinLength(1)
+  name!: string;
+}

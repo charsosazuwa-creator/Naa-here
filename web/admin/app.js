@@ -203,17 +203,57 @@
       </tr>
       <tr class="submission-detail" data-detail-for="${escapeHtml(l.id)}" hidden>
         <td colspan="6">
-          <p>${escapeHtml(l.description ?? '')}</p>
-          ${
-            l.images.length
-              ? `<div class="listing-review-images">${l.images.map((img) => `<img src="${escapeHtml(img.url)}" alt="" />`).join('')}</div>`
-              : '<p style="color:var(--color-text-muted);font-size:0.85rem">No images attached.</p>'
-          }
-          <p style="font-size:0.85rem;color:var(--color-text-muted)">
+          <p data-view-for="${escapeHtml(l.id)}">${escapeHtml(l.description ?? '')}</p>
+          <div class="listing-review-images" data-images-for="${escapeHtml(l.id)}">
+            ${
+              l.images.length
+                ? l.images
+                    .map(
+                      (img) => `
+              <span class="listing-review-image" data-image-wrap="${escapeHtml(img.id)}">
+                <img src="${escapeHtml(img.url)}" alt="" />
+                <button class="btn-plain" type="button" data-action="remove-listing-image" data-id="${escapeHtml(l.id)}" data-image-id="${escapeHtml(img.id)}">Delete photo</button>
+              </span>`,
+                    )
+                    .join('')
+                : '<p style="color:var(--color-text-muted);font-size:0.85rem">No images attached.</p>'
+            }
+          </div>
+          <p data-view-for="${escapeHtml(l.id)}" style="font-size:0.85rem;color:var(--color-text-muted)">
             Category: <strong>${escapeHtml(l.category)}</strong> · Contact:
             ${escapeHtml(l.contactMethod)} — ${escapeHtml(l.contactValue)}
             ${l.locationText ? ` · Location: ${escapeHtml(l.locationText)}` : ''}
           </p>
+          <div class="actions-row">
+            <button class="btn-plain" type="button" data-action="toggle-edit-listing" data-id="${escapeHtml(l.id)}">Edit</button>
+          </div>
+
+          <div class="listing-edit-form" data-edit-for="${escapeHtml(l.id)}" hidden style="margin-top:var(--space-2)">
+            <div class="listing-edit-alert alert error" role="alert" hidden></div>
+            <div class="field"><label>Title</label><input class="le-title" value="${escapeHtml(l.title)}" /></div>
+            <div class="field"><label>Category</label><input class="le-category" value="${escapeHtml(l.category)}" /></div>
+            <div class="field"><label>Description</label><textarea class="le-description" rows="3">${escapeHtml(l.description ?? '')}</textarea></div>
+            <div class="field">
+              <label>Price type</label>
+              <select class="le-price-type tenant-select">
+                ${['fixed', 'starting_from', 'negotiable', 'contact']
+                  .map((pt) => `<option value="${pt}" ${pt === l.priceType ? 'selected' : ''}>${pt}</option>`)
+                  .join('')}
+              </select>
+            </div>
+            <div class="field"><label>Price (e.g. 25.00 — ignored for negotiable/contact)</label><input class="le-price" type="number" min="0" step="0.01" value="${l.priceMinorUnits != null ? (Number(l.priceMinorUnits) / 100).toFixed(2) : ''}" /></div>
+            <div class="field">
+              <label>Currency</label>
+              <select class="le-currency tenant-select">
+                ${['NGN', 'KES', 'GHS', 'ZAR'].map((c) => `<option value="${c}" ${c === l.currencyCode ? 'selected' : ''}>${c}</option>`).join('')}
+              </select>
+            </div>
+            <div class="actions-row">
+              <button class="primary" type="button" data-action="save-listing-edit" data-id="${escapeHtml(l.id)}">Save changes</button>
+              <button class="btn-plain" type="button" data-action="toggle-edit-listing" data-id="${escapeHtml(l.id)}">Cancel</button>
+            </div>
+          </div>
+
           <textarea class="review-note" placeholder="Reason (shown to the owner, required to reject)"></textarea>
           <div class="actions-row">
             <button class="primary" data-action="approve" data-id="${escapeHtml(l.id)}">Approve</button>
@@ -260,6 +300,67 @@
         btn.disabled = true;
         try {
           await Api.decideListing(id, decision, reason || undefined);
+          await renderPendingListings();
+        } catch (err) {
+          window.alert(err.message);
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // US-0xx: admin can fix a listing up before approving/rejecting it.
+    view.querySelectorAll('[data-action="toggle-edit-listing"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const form = view.querySelector(`[data-edit-for="${CSS.escape(id)}"]`);
+        form.hidden = !form.hidden;
+      });
+    });
+
+    view.querySelectorAll('[data-action="save-listing-edit"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        const form = view.querySelector(`[data-edit-for="${CSS.escape(id)}"]`);
+        const alertBox = form.querySelector('.listing-edit-alert');
+        alertBox.hidden = true;
+
+        const priceType = form.querySelector('.le-price-type').value;
+        const priceRaw = form.querySelector('.le-price').value.trim();
+        const patch = {
+          title: form.querySelector('.le-title').value.trim(),
+          category: form.querySelector('.le-category').value.trim(),
+          description: form.querySelector('.le-description').value.trim(),
+          priceType,
+          currencyCode: form.querySelector('.le-currency').value,
+        };
+        if (priceType === 'fixed' || priceType === 'starting_from') {
+          const amount = Number(priceRaw);
+          if (!priceRaw || Number.isNaN(amount) || amount < 0) {
+            alertBox.textContent = 'Enter a valid price for this price type.';
+            alertBox.hidden = false;
+            return;
+          }
+          patch.priceMinorUnits = Math.round(amount * 100);
+        }
+
+        btn.disabled = true;
+        try {
+          await Api.editListing(id, patch);
+          await renderPendingListings();
+        } catch (err) {
+          alertBox.textContent = err.message;
+          alertBox.hidden = false;
+          btn.disabled = false;
+        }
+      });
+    });
+
+    view.querySelectorAll('[data-action="remove-listing-image"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!window.confirm('Delete this photo from the listing?')) return;
+        btn.disabled = true;
+        try {
+          await Api.deleteListingImage(btn.dataset.id, btn.dataset.imageId);
           await renderPendingListings();
         } catch (err) {
           window.alert(err.message);
@@ -377,12 +478,100 @@
     });
   }
 
+  // Admin's direct "add a category" screen — lists both the service
+  // and business category tables (migration 023's 'category.manage'
+  // permission gates the add forms; the lists themselves are public
+  // GETs, same as the "create service"/"create business" forms that
+  // autocomplete against them, so those load even for a signed-in
+  // account without the permission — only submitting the add form
+  // needs it).
+  async function renderCategories() {
+    view.innerHTML = `<p class="empty-state">Loading…</p>`;
+    let serviceCategories, businessCategories;
+    try {
+      [serviceCategories, businessCategories] = await Promise.all([
+        Api.listServiceCategories(),
+        Api.listBusinessCategories(),
+      ]);
+    } catch (err) {
+      renderError(err);
+      return;
+    }
+
+    const categoryListHtml = (categories) =>
+      categories.length
+        ? `<ul style="margin:0;padding-left:1.2em">${categories.map((c) => `<li>${escapeHtml(c.name)}</li>`).join('')}</ul>`
+        : '<p class="empty-state">No categories yet.</p>';
+
+    view.innerHTML = `
+      <div class="panel">
+        <h2>Service categories</h2>
+        <p style="color:var(--color-text-muted);font-size:0.85rem">Shown to providers when they create a service.</p>
+        <div id="service-category-list">${categoryListHtml(serviceCategories)}</div>
+        <div id="service-category-alert" class="alert error" role="alert" hidden></div>
+        <form id="service-category-form" novalidate style="margin-top:var(--space-3)">
+          <div class="field"><label for="sc-name">Add a service category</label><input id="sc-name" required /></div>
+          <button class="primary" type="submit">Add</button>
+        </form>
+      </div>
+      <div class="panel">
+        <h2>Business categories</h2>
+        <p style="color:var(--color-text-muted);font-size:0.85rem">Shown when a business signs up.</p>
+        <div id="business-category-list">${categoryListHtml(businessCategories)}</div>
+        <div id="business-category-alert" class="alert error" role="alert" hidden></div>
+        <form id="business-category-form" novalidate style="margin-top:var(--space-3)">
+          <div class="field"><label for="bc-name">Add a business category</label><input id="bc-name" required /></div>
+          <button class="primary" type="submit">Add</button>
+        </form>
+      </div>`;
+
+    document.getElementById('service-category-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const input = document.getElementById('sc-name');
+      const alertBox = document.getElementById('service-category-alert');
+      const name = input.value.trim();
+      if (!name) return;
+      alertBox.hidden = true;
+      try {
+        await Api.createServiceCategory(name);
+        input.value = '';
+        await renderCategories();
+      } catch (err) {
+        alertBox.textContent = err.status === 403
+          ? "This account doesn't hold a platform role that carries the category.manage permission."
+          : err.message;
+        alertBox.hidden = false;
+      }
+    });
+
+    document.getElementById('business-category-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const input = document.getElementById('bc-name');
+      const alertBox = document.getElementById('business-category-alert');
+      const name = input.value.trim();
+      if (!name) return;
+      alertBox.hidden = true;
+      try {
+        await Api.createBusinessCategory(name);
+        input.value = '';
+        await renderCategories();
+      } catch (err) {
+        alertBox.textContent = err.status === 403
+          ? "This account doesn't hold a platform role that carries the category.manage permission."
+          : err.message;
+        alertBox.hidden = false;
+      }
+    });
+  }
+
   function switchTab(tab) {
     document.querySelectorAll('.admin-tabs button').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
     if (tab === 'listings') {
       renderPendingListings();
     } else if (tab === 'disputes') {
       renderDisputesQueue();
+    } else if (tab === 'categories') {
+      renderCategories();
     } else {
       renderPending();
     }
