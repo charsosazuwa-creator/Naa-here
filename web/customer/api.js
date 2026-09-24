@@ -204,6 +204,31 @@ const Api = {
     apiRequest(`/conversations/${conversationId}/messages`, { method: 'POST', body: { body }, auth: true }),
   blockConversation: (conversationId) => apiRequest(`/conversations/${conversationId}/block`, { method: 'POST', auth: true }),
   unblockConversation: (conversationId) => apiRequest(`/conversations/${conversationId}/block`, { method: 'DELETE', auth: true }),
+  deleteMessageAttachment: (conversationId, messageId, attachmentId) =>
+    apiRequest(`/conversations/${conversationId}/messages/${messageId}/attachments/${attachmentId}`, { method: 'DELETE', auth: true }),
+  async uploadMessageAttachment(conversationId, messageId, file) {
+    const token = getAccessToken();
+    if (!token) {
+      window.location.href = `login.html?next=${encodeURIComponent(window.location.hash)}`;
+      throw new Error('Not signed in.');
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE_URL}/conversations/${conversationId}/messages/${messageId}/attachments`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) {
+        clearSession();
+        window.location.href = `login.html?next=${encodeURIComponent(window.location.hash)}`;
+      }
+      throw new Error(data?.error?.message || `Request failed (${res.status}).`);
+    }
+    return data;
+  },
 
   // voice calling (Phase 2 -- User Stories 1 & 2's calling halves).
   // accept/decline/end/timeoutCall are shared verbs regardless of who

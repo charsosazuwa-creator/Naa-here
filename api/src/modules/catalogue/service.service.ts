@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { DatabaseService } from '../../database/database.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateServiceDto } from './dto/service.dto';
+import { ServiceImageService, ServiceImageRow } from './service-image.service';
 
 export interface ServiceListing {
   id: string;
@@ -14,6 +15,7 @@ export interface ServiceListing {
   priceMinorUnits: number;
   currencyCode: string;
   status: 'draft' | 'published' | 'archived';
+  images: { id: string; url: string; position: number }[];
 }
 
 export interface ServiceCategory {
@@ -45,6 +47,7 @@ export class ServiceCatalogueService {
   constructor(
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
+    private readonly images: ServiceImageService,
   ) {}
 
   /**
@@ -122,7 +125,7 @@ export class ServiceCatalogueService {
         `SELECT ${SELECT_COLUMNS} FROM service s JOIN service_category sc ON sc.id = s.category_id WHERE s.id = $1`,
         [rows[0].id],
       );
-      return toListing(withCategory[0]);
+      return toListing(withCategory[0], []);
     });
   }
 
@@ -158,7 +161,8 @@ export class ServiceCatalogueService {
           `SELECT ${SELECT_COLUMNS} FROM service s JOIN service_category sc ON sc.id = s.category_id WHERE s.id = $1`,
           [serviceId],
         );
-        return toListing(withCategory[0]);
+        const images = await this.images.forService(serviceId);
+        return toListing(withCategory[0], images);
       });
     } catch (err) {
       // Surfaces the database trigger's rejection (unverified tenant
@@ -180,12 +184,13 @@ export class ServiceCatalogueService {
              WHERE s.tenant_id = $1 AND s.status = 'published' ORDER BY s.created_at DESC`,
         [tenantId],
       );
-      return rows.map(toListing);
+      const images = await this.images.forServices(rows.map((r) => r.id as string));
+      return rows.map((row) => toListing(row, images.filter((img) => img.service_id === row.id)));
     });
   }
 }
 
-function toListing(row: Record<string, unknown>): ServiceListing {
+function toListing(row: Record<string, unknown>, images: ServiceImageRow[]): ServiceListing {
   return {
     id: row.id as string,
     categoryId: row.category_id as number,
@@ -197,5 +202,9 @@ function toListing(row: Record<string, unknown>): ServiceListing {
     priceMinorUnits: row.price_minor_units as number,
     currencyCode: row.currency_code as string,
     status: row.status as ServiceListing['status'],
+    images: images
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map((img) => ({ id: img.id, url: `/uploads/${img.storage_key}`, position: img.position })),
   };
 }

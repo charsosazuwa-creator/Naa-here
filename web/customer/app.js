@@ -271,6 +271,17 @@ views.service = async (params, routeParams) => {
       <div>${badge('published')} <span style="color:var(--color-text-muted);font-size:0.85rem">${escapeHtml(service.categoryName)}</span></div>
     </div>
 
+    ${
+      service.images && service.images.length
+        ? `<div class="panel">
+      <h2>Photos</h2>
+      <div class="listing-images">
+        ${service.images.map((img) => `<div class="listing-image-thumb"><img src="${escapeHtml(img.url)}" alt="" /></div>`).join('')}
+      </div>
+    </div>`
+        : ''
+    }
+
     <div class="panel">
       <h2>Business hours</h2>
       ${
@@ -846,6 +857,19 @@ function stopMessagingRealtime() {
   messagingState.conversationId = null;
 }
 
+function renderMessageAttachmentsHtml(attachments) {
+  if (!attachments || attachments.length === 0) return '';
+  return `<div class="listing-images" style="margin:6px 0 0">
+    ${attachments
+      .map((a) =>
+        a.contentType && a.contentType.startsWith('image/')
+          ? `<div class="listing-image-thumb"><a href="${escapeHtml(a.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(a.url)}" alt="" /></a></div>`
+          : `<div class="listing-image-thumb"><a href="${escapeHtml(a.url)}" target="_blank" rel="noopener">Attachment</a></div>`,
+      )
+      .join('')}
+  </div>`;
+}
+
 function renderDirectMessageHtml(m) {
   const mine = m.senderIsCustomer;
   return `
@@ -854,6 +878,7 @@ function renderDirectMessageHtml(m) {
         <strong>${mine ? 'You' : 'Business'}</strong> · ${formatDateTime(m.createdAt)}
       </div>
       <div>${escapeHtml(m.body)}</div>
+      ${renderMessageAttachmentsHtml(m.attachments)}
     </div>`;
 }
 
@@ -941,7 +966,11 @@ async function renderConversationDetail(conversationId) {
       <div id="dm-alert" class="alert error" role="alert" hidden></div>
       <form id="dm-form" novalidate>
         <div class="field">
-          <textarea id="dm-body" rows="2" placeholder="Write a message…" required></textarea>
+          <textarea id="dm-body" rows="2" placeholder="Write a message…"></textarea>
+        </div>
+        <div class="field">
+          <label for="dm-file">Attach a file or photo (optional)</label>
+          <input id="dm-file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" />
         </div>
         <button class="primary" type="submit" id="dm-send-btn">Send</button>
       </form>
@@ -959,19 +988,31 @@ async function renderConversationDetail(conversationId) {
     document.getElementById('dm-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       const textarea = document.getElementById('dm-body');
+      const fileInput = document.getElementById('dm-file');
       const alertBox = document.getElementById('dm-alert');
       const btn = document.getElementById('dm-send-btn');
-      const text = textarea.value.trim();
+      const file = fileInput.files[0];
+      const text = textarea.value.trim() || (file ? `📎 ${file.name}` : '');
       if (!text) return;
       alertBox.hidden = true;
       btn.disabled = true;
       try {
         const message = await Api.sendConversationMessage(conversationId, text);
+        if (file) {
+          try {
+            const attachment = await Api.uploadMessageAttachment(conversationId, message.id, file);
+            message.attachments = [attachment];
+          } catch (uploadErr) {
+            alertBox.textContent = `Message sent, but the attachment failed to upload: ${uploadErr.message}`;
+            alertBox.hidden = false;
+          }
+        }
         if (container.dataset.empty === 'true') container.innerHTML = '';
         container.dataset.empty = 'false';
         container.insertAdjacentHTML('beforeend', renderDirectMessageHtml(message));
         container.scrollTop = container.scrollHeight;
         textarea.value = '';
+        fileInput.value = '';
       } catch (err) {
         alertBox.textContent = err.message;
         alertBox.hidden = false;

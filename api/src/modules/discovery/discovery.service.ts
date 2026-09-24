@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { DiscoverServicesQueryDto } from './dto/discover.dto';
+import { ServiceImageService, ServiceImageRow } from '../catalogue/service-image.service';
 
 export interface DiscoveredService {
   id: string;
@@ -23,6 +24,7 @@ export interface DiscoveredService {
     latitude: number | null;
     longitude: number | null;
   } | null;
+  images: { id: string; url: string; position: number }[];
 }
 
 export interface AvailabilityWindow {
@@ -58,7 +60,10 @@ export interface DaySlots {
  */
 @Injectable()
 export class DiscoveryService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly images: ServiceImageService,
+  ) {}
 
   async listServices(filters: DiscoverServicesQueryDto): Promise<DiscoveredService[]> {
     const conditions: string[] = [];
@@ -100,7 +105,10 @@ export class DiscoveryService {
       params,
     );
 
-    return rows.map(toDiscoveredService);
+    const images = await this.images.forServices(rows.map((r: Record<string, unknown>) => r.id as string));
+    return rows.map((row: Record<string, unknown>) =>
+      toDiscoveredService(row, images.filter((img) => img.service_id === row.id)),
+    );
   }
 
   async getServiceDetail(serviceId: string): Promise<DiscoveredServiceDetail> {
@@ -128,7 +136,7 @@ export class DiscoveryService {
       throw new NotFoundException('Service not found.');
     }
 
-    const service = toDiscoveredService(rows[0]);
+    const service = toDiscoveredService(rows[0], await this.images.forService(rows[0].id as string));
 
     const [availabilityRows, blockedRows] = await Promise.all([
       this.db.query(
@@ -249,7 +257,7 @@ export class DiscoveryService {
   }
 }
 
-function toDiscoveredService(row: Record<string, unknown>): DiscoveredService {
+function toDiscoveredService(row: Record<string, unknown>, images: ServiceImageRow[] = []): DiscoveredService {
   return {
     id: row.id as string,
     name: row.name as string,
@@ -273,5 +281,9 @@ function toDiscoveredService(row: Record<string, unknown>): DiscoveredService {
           longitude: (row.longitude as number) ?? null,
         }
       : null,
+    images: images
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map((img) => ({ id: img.id, url: `/uploads/${img.storage_key}`, position: img.position })),
   };
 }

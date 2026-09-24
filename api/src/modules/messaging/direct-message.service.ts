@@ -17,6 +17,13 @@ export interface ConversationSummary {
   unreadCount: number;
 }
 
+export interface MessageAttachmentSummary {
+  id: string;
+  url: string;
+  contentType: string;
+  byteSize: number;
+}
+
 export interface DirectMessageRecord {
   id: string;
   conversationId: string;
@@ -25,6 +32,7 @@ export interface DirectMessageRecord {
   body: string;
   createdAt: string;
   readAt: string | null;
+  attachments: MessageAttachmentSummary[];
 }
 
 const MESSAGE_PREVIEW_LENGTH = 120;
@@ -159,7 +167,41 @@ export class DirectMessageService {
       body: row.body as string,
       createdAt: row.created_at as string,
       readAt: (row.read_at as string) ?? null,
+      attachments: [], // a brand-new message has none yet -- added via a follow-up upload (see message-attachment.service.ts)
     };
+  }
+
+  /**
+   * Public participant check for other modules (message-attachment.
+   * service.ts) that need to authorize an action against a
+   * conversation without duplicating requireConversation/
+   * requireActiveTenantMember's logic. Same rule reply()/listMessages()
+   * already enforce: the customer, or an active member of the
+   * provider's tenant.
+   */
+  async requireParticipant(conversationId: string, actorUserId: string): Promise<{ id: string; tenantId: string; customerUserId: string }> {
+    const conversation = await this.requireConversation(conversationId);
+    const isCustomer = conversation.customer_user_id === actorUserId;
+    if (!isCustomer) {
+      await this.requireActiveTenantMember(conversation.tenant_id, actorUserId);
+    }
+    return { id: conversation.id, tenantId: conversation.tenant_id, customerUserId: conversation.customer_user_id };
+  }
+
+  private async attachmentsFor(messageIds: string[]): Promise<Map<string, MessageAttachmentSummary[]>> {
+    const byMessage = new Map<string, MessageAttachmentSummary[]>();
+    if (messageIds.length === 0) return byMessage;
+    const rows = await this.db.query<{ id: string; message_id: string; storage_key: string; content_type: string; byte_size: number }>(
+      `SELECT id, message_id, storage_key, content_type, byte_size FROM direct_message_attachment
+       WHERE message_id = ANY($1::uuid[]) ORDER BY created_at ASC`,
+      [messageIds],
+    );
+    for (const row of rows) {
+      const list = byMessage.get(row.message_id) ?? [];
+      list.push({ id: row.id, url: `/uploads/${row.storage_key}`, contentType: row.content_type, byteSize: row.byte_size });
+      byMessage.set(row.message_id, list);
+    }
+    return byMessage;
   }
 
   async startAsCustomer(customerUserId: string, dto: StartConversationAsCustomerDto): Promise<ConversationSummary> {
@@ -273,6 +315,8 @@ export class DirectMessageService {
       [conversationId, actorUserId],
     );
 
+    const attachmentsByMessage = await this.attachmentsFor(rows.map((row) => row.id as string));
+
     return rows.map((row) => ({
       id: row.id as string,
       conversationId: row.conversation_id as string,
@@ -281,6 +325,7 @@ export class DirectMessageService {
       body: row.body as string,
       createdAt: row.created_at as string,
       readAt: (row.read_at as string) ?? null,
+      attachments: attachmentsByMessage.get(row.id as string) ?? [],
     }));
   }
 

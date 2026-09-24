@@ -477,6 +477,7 @@ views.services = async () => {
           <div class="actions-row">
             ${s.status !== 'published' ? `<button class="small primary" data-action="publish" data-id="${s.id}">Publish</button>` : ''}
             ${s.status === 'published' ? `<button class="small" data-action="archive" data-id="${s.id}">Archive</button>` : ''}
+            <button class="small" data-action="photos" data-id="${s.id}">Photos${s.images && s.images.length ? ` (${s.images.length})` : ''}</button>
           </div>
         </td>
       </tr>`,
@@ -492,6 +493,7 @@ views.services = async () => {
         <tbody>${rows}</tbody>
       </table>
     </div>
+    <div id="service-photos-panel"></div>
     <div class="panel">
       <h2>Add a service</h2>
       <div id="service-alert" class="alert error" role="alert" hidden></div>
@@ -534,6 +536,13 @@ views.services = async () => {
     document.querySelectorAll('[data-action="archive"]').forEach((btn) =>
       btn.addEventListener('click', () => runAction(btn, () => Api.setServiceStatus(state.tenantId, btn.dataset.id, 'archived'))),
     );
+    document.querySelectorAll('[data-action="photos"]').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        const service = services.find((s) => s.id === btn.dataset.id);
+        const panel = document.getElementById('service-photos-panel');
+        renderServicePhotosPanel(panel, state.tenantId, service);
+      }),
+    );
 
     const form = document.getElementById('create-service-form');
     const alertBox = document.getElementById('service-alert');
@@ -560,6 +569,82 @@ views.services = async () => {
 
   return { title: 'Services', body, after };
 };
+
+// US-0xx (provider service photos): renders the photo management panel
+// for a single service — existing thumbnails with delete buttons, plus
+// a file input to add a new photo. Re-renders itself in place after
+// each change (does not call the full renderRoute(), so the rest of
+// the Services page — including any in-progress "Add a service" form
+// input — is left untouched).
+function renderServicePhotosPanel(panel, tenantId, service) {
+  const images = service.images || [];
+  panel.innerHTML = `
+    <div class="panel">
+      <h2>Photos — ${escapeHtml(service.name)}</h2>
+      <div id="service-photos-alert" class="alert error" role="alert" hidden></div>
+      <div class="listing-images">
+        ${
+          images.length
+            ? images
+                .map(
+                  (img) => `
+          <div class="listing-image-thumb">
+            <img src="${escapeHtml(img.url)}" alt="" />
+            <button class="small danger" type="button" data-action="remove-photo" data-id="${img.id}">Remove</button>
+          </div>`,
+                )
+                .join('')
+            : '<p style="color:var(--color-text-muted)">No photos yet.</p>'
+        }
+      </div>
+      <div class="field">
+        <label for="service-photo-file">Add a photo (JPEG, PNG or WebP, up to 5MB)</label>
+        <input id="service-photo-file" type="file" accept="image/jpeg,image/png,image/webp" />
+      </div>
+      <button class="small primary" type="button" id="service-photo-upload-btn">Upload</button>
+    </div>
+  `;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  const alertBox = panel.querySelector('#service-photos-alert');
+  const refresh = async () => {
+    const updated = await Api.listServices(tenantId);
+    const updatedService = updated.find((s) => s.id === service.id) || service;
+    renderServicePhotosPanel(panel, tenantId, updatedService);
+  };
+
+  panel.querySelectorAll('[data-action="remove-photo"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      alertBox.hidden = true;
+      try {
+        await Api.deleteServiceImage(tenantId, service.id, btn.dataset.id);
+        await refresh();
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.hidden = false;
+        btn.disabled = false;
+      }
+    });
+  });
+
+  panel.querySelector('#service-photo-upload-btn').addEventListener('click', async (event) => {
+    const uploadBtn = event.currentTarget;
+    const fileInput = panel.querySelector('#service-photo-file');
+    const file = fileInput.files[0];
+    if (!file) return;
+    alertBox.hidden = true;
+    uploadBtn.disabled = true;
+    try {
+      await Api.uploadServiceImage(tenantId, service.id, file);
+      await refresh();
+    } catch (err) {
+      alertBox.textContent = err.message;
+      alertBox.hidden = false;
+      uploadBtn.disabled = false;
+    }
+  });
+}
 
 // ---------------------------------------------------------------------
 // Availability
@@ -1277,6 +1362,19 @@ function stopProviderMessagingRealtime() {
   providerMessagingState.conversationId = null;
 }
 
+function renderProviderMessageAttachmentsHtml(attachments) {
+  if (!attachments || attachments.length === 0) return '';
+  return `<div class="listing-images" style="margin:6px 0 0">
+    ${attachments
+      .map((a) =>
+        a.contentType && a.contentType.startsWith('image/')
+          ? `<div class="listing-image-thumb"><a href="${escapeHtml(a.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(a.url)}" alt="" /></a></div>`
+          : `<div class="listing-image-thumb"><a href="${escapeHtml(a.url)}" target="_blank" rel="noopener">Attachment</a></div>`,
+      )
+      .join('')}
+  </div>`;
+}
+
 function renderProviderDirectMessageHtml(m) {
   const mine = !m.senderIsCustomer;
   return `
@@ -1285,6 +1383,7 @@ function renderProviderDirectMessageHtml(m) {
         <strong>${mine ? 'You' : 'Customer'}</strong> · ${formatDate(m.createdAt)}
       </div>
       <div>${escapeHtml(m.body)}</div>
+      ${renderProviderMessageAttachmentsHtml(m.attachments)}
     </div>`;
 }
 
@@ -1374,7 +1473,11 @@ async function renderConversationDetailForTenant(conversationId) {
       <div id="pdm-alert" class="alert error" role="alert" hidden></div>
       <form id="pdm-form" novalidate>
         <div class="field">
-          <textarea id="pdm-body" rows="2" placeholder="Write a reply…" required></textarea>
+          <textarea id="pdm-body" rows="2" placeholder="Write a reply…"></textarea>
+        </div>
+        <div class="field">
+          <label for="pdm-file">Attach a file or photo (optional)</label>
+          <input id="pdm-file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" />
         </div>
         <button class="primary" type="submit" id="pdm-send-btn">Send</button>
       </form>
@@ -1388,19 +1491,31 @@ async function renderConversationDetailForTenant(conversationId) {
     document.getElementById('pdm-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       const textarea = document.getElementById('pdm-body');
+      const fileInput = document.getElementById('pdm-file');
       const alertBox = document.getElementById('pdm-alert');
       const btn = document.getElementById('pdm-send-btn');
-      const text = textarea.value.trim();
+      const file = fileInput.files[0];
+      const text = textarea.value.trim() || (file ? `📎 ${file.name}` : '');
       if (!text) return;
       alertBox.hidden = true;
       btn.disabled = true;
       try {
         const message = await Api.sendConversationMessage(conversationId, text);
+        if (file) {
+          try {
+            const attachment = await Api.uploadMessageAttachment(conversationId, message.id, file);
+            message.attachments = [attachment];
+          } catch (uploadErr) {
+            alertBox.textContent = `Message sent, but the attachment failed to upload: ${uploadErr.message}`;
+            alertBox.hidden = false;
+          }
+        }
         if (container.dataset.empty === 'true') container.innerHTML = '';
         container.dataset.empty = 'false';
         container.insertAdjacentHTML('beforeend', renderProviderDirectMessageHtml(message));
         container.scrollTop = container.scrollHeight;
         textarea.value = '';
+        fileInput.value = '';
       } catch (err) {
         alertBox.textContent = err.message;
         alertBox.hidden = false;

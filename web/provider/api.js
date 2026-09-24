@@ -147,6 +147,60 @@ const Api = {
     apiRequest(`/tenants/${tenantId}/bookings/${bookingId}/status`, { method: 'PATCH', body: payload }),
   getTrackingStatus: (bookingId) => apiRequest(`/bookings/${bookingId}/tracking-status`),
 
+  // service photos (Provider uploads while creating/managing a service)
+  deleteServiceImage: (tenantId, serviceId, imageId) =>
+    apiRequest(`/tenants/${tenantId}/services/${serviceId}/images/${imageId}`, { method: 'DELETE' }),
+  async uploadServiceImage(tenantId, serviceId, file) {
+    const token = getAccessToken();
+    if (!token) {
+      window.location.href = 'login.html';
+      throw new Error('Not signed in.');
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE_URL}/tenants/${tenantId}/services/${serviceId}/images`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) {
+        clearSession();
+        window.location.href = 'login.html';
+      }
+      throw new Error(data?.error?.message || `Request failed (${res.status}).`);
+    }
+    return data;
+  },
+
+  // message attachments (Customer/Provider sharing files in a conversation)
+  deleteMessageAttachment: (conversationId, messageId, attachmentId) =>
+    apiRequest(`/conversations/${conversationId}/messages/${messageId}/attachments/${attachmentId}`, { method: 'DELETE' }),
+  async uploadMessageAttachment(conversationId, messageId, file) {
+    const token = getAccessToken();
+    if (!token) {
+      window.location.href = 'login.html';
+      throw new Error('Not signed in.');
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API_BASE_URL}/conversations/${conversationId}/messages/${messageId}/attachments`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) {
+        clearSession();
+        window.location.href = 'login.html';
+      }
+      throw new Error(data?.error?.message || `Request failed (${res.status}).`);
+    }
+    return data;
+  },
+
   // artisan job requests
   listJobRequests: (tenantId) => apiRequest(`/tenants/${tenantId}/job-requests`),
   quoteJobRequest: (tenantId, jobRequestId, payload) =>
