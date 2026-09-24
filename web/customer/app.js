@@ -88,7 +88,7 @@ views.home = async () => {
   ];
 
   const body = `
-    <section class="hero">
+    <section class="hero" style="background-image:url('assets/home-hero.jpg')">
       <h1>Welcome to naahere.com</h1>
       <p class="sub">Find and book trusted local salons, barbers, artisans, movers, restaurants and other service providers across Nigeria, Kenya, Ghana and South Africa. Book online, pay the service provider directly \u2014 cash, mobile money, or bank transfer.</p>
       <div class="hero-actions">
