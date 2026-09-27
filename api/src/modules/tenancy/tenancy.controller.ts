@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TenantRoleGuard } from '../../common/guards/tenant-role.guard';
 import { RequirePermission } from '../../common/decorators/require-permission.decorator';
 import { CurrentUserId } from '../../common/decorators/current-user.decorator';
 import { CreateBusinessDto } from './dto/create-business.dto';
+import { UpdateLicenseNumberDto } from './dto/update-license-number.dto';
 import { CreateLocationDto } from './dto/location.dto';
 import { InviteStaffDto } from './dto/invite-staff.dto';
 import { BusinessService } from './business.service';
@@ -44,6 +45,17 @@ export class TenancyController {
   @UseGuards(TenantRoleGuard)
   get(@Param('tenantId') tenantId: string) {
     return this.business.findById(tenantId);
+  }
+
+  // Optional professional license/registration number a provider or
+  // artisan can record on their own profile (migration 024) -- never
+  // required, not surfaced to customers. Same permission as the other
+  // owner-editable profile fields (locations).
+  @Patch(':tenantId')
+  @UseGuards(TenantRoleGuard)
+  @RequirePermission('business.manage')
+  updateLicenseNumber(@Param('tenantId') tenantId: string, @Body() dto: UpdateLicenseNumberDto) {
+    return this.business.updateLicenseNumber(tenantId, dto.licenseNumber ?? null);
   }
 
   @Post(':tenantId/locations')

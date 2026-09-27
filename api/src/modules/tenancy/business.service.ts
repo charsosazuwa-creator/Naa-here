@@ -16,6 +16,7 @@ export interface BusinessProfile {
   contactEmail: string | null;
   verificationStatus: 'unverified' | 'pending' | 'verified' | 'rejected';
   status: string;
+  licenseNumber: string | null;
 }
 
 const BUSINESS_TYPE_ROLE_ID: Record<CreateBusinessDto['businessType'], number> = {
@@ -51,7 +52,7 @@ export class BusinessService {
       const { rows: tenantRows } = await client.query(
         `INSERT INTO tenant (name, country_code, category_id, business_type, description, contact_phone, contact_email)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id, name, category_id, business_type, country_code, description, contact_phone, contact_email, verification_status, status`,
+         RETURNING id, name, category_id, business_type, country_code, description, contact_phone, contact_email, verification_status, status, license_number`,
         [dto.name, dto.countryCode, categoryId, dto.businessType, dto.description ?? null, dto.contactPhone ?? null, dto.contactEmail ?? null],
       );
       const tenant = tenantRows[0];
@@ -100,7 +101,7 @@ export class BusinessService {
     return this.db.withUser(userId, async (client) => {
       const { rows } = await client.query(
         `SELECT t.id, t.name, t.category_id, bc.name AS category_name, t.business_type, t.country_code,
-                t.description, t.contact_phone, t.contact_email,
+                t.description, t.contact_phone, t.contact_email, t.license_number,
                 t.verification_status, t.status, r.code AS role_code
          FROM membership m
          JOIN tenant t ON t.id = m.tenant_id
@@ -117,7 +118,7 @@ export class BusinessService {
   async findById(tenantId: string): Promise<BusinessProfile> {
     const rows = await this.db.query(
       `SELECT t.id, t.name, t.category_id, bc.name AS category_name, t.business_type, t.country_code,
-              t.description, t.contact_phone, t.contact_email, t.verification_status, t.status
+              t.description, t.contact_phone, t.contact_email, t.license_number, t.verification_status, t.status
        FROM tenant t JOIN business_category bc ON bc.id = t.category_id
        WHERE t.id = $1`,
       [tenantId],
@@ -126,6 +127,25 @@ export class BusinessService {
       throw new NotFoundException('Business not found.');
     }
     return toBusinessProfile(rows[0]);
+  }
+
+  /**
+   * Sets or clears (empty string -> null) the optional professional
+   * license/registration number on the caller's own business profile.
+   * Purely informational: not validated against any registry, never
+   * required, and not surfaced to customers -- see migration 024.
+   */
+  async updateLicenseNumber(tenantId: string, licenseNumber: string | null): Promise<BusinessProfile> {
+    const rows = await this.db.query(
+      `UPDATE tenant SET license_number = $1 WHERE id = $2
+       RETURNING id, category_id, business_type, country_code, description, contact_phone, contact_email,
+                 license_number, verification_status, status, name`,
+      [licenseNumber?.trim() ? licenseNumber.trim() : null, tenantId],
+    );
+    if (rows.length === 0) {
+      throw new NotFoundException('Business not found.');
+    }
+    return toBusinessProfile({ ...rows[0], category_name: await this.categoryName(rows[0].category_id as string) });
   }
 
   private async categoryName(categoryId: string): Promise<string> {
@@ -147,5 +167,6 @@ function toBusinessProfile(row: Record<string, unknown>): BusinessProfile {
     contactEmail: (row.contact_email as string) ?? null,
     verificationStatus: row.verification_status as BusinessProfile['verificationStatus'],
     status: row.status as string,
+    licenseNumber: (row.license_number as string) ?? null,
   };
 }

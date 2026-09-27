@@ -81,6 +81,11 @@
         <td colspan="6">
           <p>Document type: <strong>${escapeHtml(s.documentType)}</strong> — attachment id
           <code>${escapeHtml(s.attachmentId)}</code>.</p>
+          ${
+            s.licenseNumber
+              ? `<p>License / registration number: <strong>${escapeHtml(s.licenseNumber)}</strong> <span style="color:var(--color-text-muted);font-size:0.85rem">(self-reported, not verified against any registry)</span></p>`
+              : ''
+          }
           <div class="actions-row">
             <button class="btn-plain" data-action="view-document" data-id="${escapeHtml(s.id)}">View document</button>
           </div>

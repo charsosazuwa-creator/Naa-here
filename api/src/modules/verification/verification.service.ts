@@ -16,6 +16,9 @@ export interface VerificationSubmissionForReview extends VerificationSubmission 
   tenantName: string;
   countryCode: string;
   submittedAt: string;
+  // Optional, provider-entered (migration 024) -- shown to reviewers
+  // as context only, never validated against any registry.
+  licenseNumber: string | null;
 }
 
 /**
@@ -156,7 +159,7 @@ export class VerificationService {
     return this.db.withUser(callerUserId, async (client) => {
       const { rows } = await client.query(
         `SELECT vs.id, vs.document_type, vs.attachment_id, vs.status, vs.decision_note,
-                vs.tenant_id, vs.created_at, t.name AS tenant_name, t.country_code
+                vs.tenant_id, vs.created_at, t.name AS tenant_name, t.country_code, t.license_number
          FROM verification_submission vs
          JOIN tenant t ON t.id = vs.tenant_id
          WHERE $1::boolean OR vs.status = 'pending'
@@ -186,5 +189,6 @@ function toSubmissionForReview(row: Record<string, unknown>): VerificationSubmis
     tenantName: row.tenant_name as string,
     countryCode: row.country_code as string,
     submittedAt: row.created_at as string, // Date, serialized to ISO by JSON.stringify — same pattern booking.service.ts's toBooking() uses
+    licenseNumber: (row.license_number as string) ?? null,
   };
 }

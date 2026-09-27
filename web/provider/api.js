@@ -91,6 +91,8 @@ const Api = {
   createTenant: (payload) => apiRequest('/tenants', { method: 'POST', body: payload }),
   listBusinessCategories: () => apiRequest('/business-categories'),
   getTenant: (tenantId) => apiRequest(`/tenants/${tenantId}`),
+  updateLicenseNumber: (tenantId, licenseNumber) =>
+    apiRequest(`/tenants/${tenantId}`, { method: 'PATCH', body: { licenseNumber } }),
 
   // tenancy — locations and staff (Milestone 2 provider setup).
   listLocations: (tenantId) => apiRequest(`/tenants/${tenantId}/locations`),

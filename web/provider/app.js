@@ -195,8 +195,42 @@ views.overview = async () => {
           : ''
       }
     </div>
+    <div class="panel">
+      <h2>Professional license / registration number</h2>
+      <p style="color:var(--color-text-muted);font-size:0.85rem;margin-top:-8px">
+        Optional. Not shown to customers — for your own records and for verification review.
+      </p>
+      <div id="license-alert" class="alert error" role="alert" hidden></div>
+      <form id="license-form" novalidate>
+        <div class="field">
+          <label for="ov-license">License / registration number</label>
+          <input id="ov-license" placeholder="e.g. a trade license or registration number" value="${escapeHtml(tenant.licenseNumber ?? '')}" />
+        </div>
+        <button class="primary" type="submit">Save</button>
+      </form>
+    </div>
   `;
-  return { title: tenant.name, body };
+
+  const after = () => {
+    const form = document.getElementById('license-form');
+    const alertBox = document.getElementById('license-alert');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      alertBox.hidden = true;
+      const submitButton = form.querySelector('button[type="submit"]');
+      submitButton.disabled = true;
+      try {
+        await Api.updateLicenseNumber(state.tenantId, document.getElementById('ov-license').value.trim());
+        renderRoute();
+      } catch (err) {
+        alertBox.textContent = err.message;
+        alertBox.hidden = false;
+        submitButton.disabled = false;
+      }
+    });
+  };
+
+  return { title: tenant.name, body, after };
 };
 
 // ---------------------------------------------------------------------
