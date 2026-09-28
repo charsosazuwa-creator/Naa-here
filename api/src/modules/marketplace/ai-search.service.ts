@@ -3,17 +3,17 @@ import { ConfigService } from '@nestjs/config';
 import { AppConfig } from '../../config/configuration';
 
 export interface InterpretedSearch {
-  listingType?: 'product' | 'service' | 'invention';
+  listingType?: 'product' | 'service' | 'invention' | 'vehicle' | 'real_estate';
   category?: string;
   keywords?: string;
   location?: string;
   urgent: boolean;
 }
 
-const LISTING_TYPES = ['product', 'service', 'invention'];
+const LISTING_TYPES = ['product', 'service', 'invention', 'vehicle', 'real_estate'];
 
-const SYSTEM_PROMPT = `You turn a customer's plain-language request for a local service or product into structured search filters for a marketplace search. Respond with ONLY a JSON object, no other text, matching exactly this shape:
-{"listingType": "product" | "service" | "invention" | null, "category": string | null, "keywords": string | null, "location": string | null, "urgent": boolean}
+const SYSTEM_PROMPT = `You turn a customer's plain-language request for a local service, product, vehicle or property into structured search filters for a marketplace search. Respond with ONLY a JSON object, no other text, matching exactly this shape:
+{"listingType": "product" | "service" | "invention" | "vehicle" | "real_estate" | null, "category": string | null, "keywords": string | null, "location": string | null, "urgent": boolean}
 Rules:
 - Never invent a business name, price, rating or availability - you are only extracting search filters, not answering the request or claiming any business exists.
 - "category" should be a short, general category word (e.g. "barber", "electrician", "hotel"), not a full sentence.

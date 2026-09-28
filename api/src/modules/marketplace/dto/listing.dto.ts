@@ -1,15 +1,87 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength, ValidateIf } from 'class-validator';
+import { IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength, ValidateIf, ValidateNested } from 'class-validator';
 
-const LISTING_TYPES = ['product', 'service', 'invention'] as const;
+const LISTING_TYPES = ['product', 'service', 'invention', 'vehicle', 'real_estate'] as const;
 const PRICE_TYPES = ['fixed', 'contact', 'negotiable', 'starting_from'] as const;
 const CONTACT_METHODS = ['phone', 'email', 'whatsapp'] as const;
 const CURRENCIES = ['NGN', 'KES', 'GHS', 'ZAR'] as const;
 const COUNTRIES = ['NG', 'KE', 'GH', 'ZA'] as const;
+const TRANSMISSIONS = ['manual', 'automatic'] as const;
+const FUEL_TYPES = ['petrol', 'diesel', 'electric', 'hybrid'] as const;
+const VEHICLE_CONDITIONS = ['new', 'used'] as const;
+const PROPERTY_TYPES = ['house', 'apartment', 'land', 'commercial', 'other'] as const;
+const SALE_OR_RENT = ['sale', 'rent'] as const;
+
+// Structured fields for a 'vehicle' listing (auto dealers) -- optional
+// even when listingType is 'vehicle', since a dealer can still post
+// with just the free-text title/description/category if they don't
+// have these details handy; ListingService only persists whichever of
+// these are actually sent.
+export class VehicleDetailDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  make?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  model?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1900)
+  @Max(2100)
+  year?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  mileageKm?: number;
+
+  @IsOptional()
+  @IsIn(TRANSMISSIONS)
+  transmission?: 'manual' | 'automatic';
+
+  @IsOptional()
+  @IsIn(FUEL_TYPES)
+  fuelType?: 'petrol' | 'diesel' | 'electric' | 'hybrid';
+
+  @IsOptional()
+  @IsIn(VEHICLE_CONDITIONS)
+  condition?: 'new' | 'used';
+}
+
+// Structured fields for a 'real_estate' listing -- same
+// all-optional shape as VehicleDetailDto above, for the same reason.
+export class PropertyDetailDto {
+  @IsOptional()
+  @IsIn(PROPERTY_TYPES)
+  propertyType?: 'house' | 'apartment' | 'land' | 'commercial' | 'other';
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  bedrooms?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  bathrooms?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  areaSqm?: number;
+
+  @IsOptional()
+  @IsIn(SALE_OR_RENT)
+  saleOrRent?: 'sale' | 'rent';
+}
 
 export class CreateListingDto {
   @IsIn(LISTING_TYPES)
-  listingType!: 'product' | 'service' | 'invention';
+  listingType!: 'product' | 'service' | 'invention' | 'vehicle' | 'real_estate';
 
   @IsString()
   @MinLength(1)
@@ -69,6 +141,16 @@ export class CreateListingDto {
   @IsString()
   @MinLength(1)
   contactValue!: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => VehicleDetailDto)
+  vehicleDetail?: VehicleDetailDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PropertyDetailDto)
+  propertyDetail?: PropertyDetailDto;
 }
 
 /**
@@ -81,7 +163,7 @@ export class CreateListingDto {
 export class UpdateListingDto {
   @IsOptional()
   @IsIn(LISTING_TYPES)
-  listingType?: 'product' | 'service' | 'invention';
+  listingType?: 'product' | 'service' | 'invention' | 'vehicle' | 'real_estate';
 
   @IsOptional()
   @IsString()
@@ -138,6 +220,16 @@ export class UpdateListingDto {
   @IsString()
   @MinLength(1)
   contactValue?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => VehicleDetailDto)
+  vehicleDetail?: VehicleDetailDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PropertyDetailDto)
+  propertyDetail?: PropertyDetailDto;
 }
 
 export class DecideListingDto {
@@ -154,7 +246,35 @@ const SORT_OPTIONS = ['relevance', 'distance', 'price_asc', 'price_desc', 'newes
 export class DiscoverListingsQueryDto {
   @IsOptional()
   @IsIn(LISTING_TYPES)
-  listingType?: 'product' | 'service' | 'invention';
+  listingType?: 'product' | 'service' | 'invention' | 'vehicle' | 'real_estate';
+
+  // Vehicle/real-estate-specific filters, applied only when set --
+  // harmless no-ops against listings of any other type.
+  @IsOptional()
+  @IsString()
+  make?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1900)
+  minYear?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1900)
+  maxYear?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minBedrooms?: number;
+
+  @IsOptional()
+  @IsIn(['sale', 'rent'])
+  saleOrRent?: 'sale' | 'rent';
 
   @IsOptional()
   @IsString()

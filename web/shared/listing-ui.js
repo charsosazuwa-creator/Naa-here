@@ -40,13 +40,40 @@
     return `<span class="badge status-${escapeHtml(status)}">${escapeHtml(String(status).replace(/_/g, ' '))}</span>`;
   }
 
-  const LISTING_TYPE_LABELS = { product: 'Product', service: 'Service', invention: 'Invention' };
+  const LISTING_TYPE_LABELS = {
+    product: 'Product',
+    service: 'Service',
+    invention: 'Invention',
+    vehicle: 'Vehicle',
+    real_estate: 'Real Estate',
+  };
 
   const CATEGORY_SUGGESTIONS = {
     product: ['Electronics', 'Fashion & Apparel', 'Home & Furniture', 'Beauty & Personal Care', 'Food & Groceries'],
     service: ['Cleaning', 'Repairs & Maintenance', 'Tutoring', 'Event Services', 'Transport'],
     invention: ['Technology', 'Agriculture', 'Health', 'Household'],
+    vehicle: ['Cars', 'Motorcycles', 'Trucks & Vans', 'Auto Parts & Accessories'],
+    real_estate: ['Houses for Sale', 'Apartments for Rent', 'Land', 'Commercial Property', 'Short-let'],
   };
+
+  function vehicleSummaryLine(v) {
+    if (!v) return '';
+    const headline = [v.year, v.make, v.model].filter(Boolean).join(' ');
+    const rest = [v.mileageKm != null ? `${v.mileageKm.toLocaleString()} km` : null, v.transmission, v.fuelType, v.condition].filter(Boolean);
+    return [headline, ...rest].filter(Boolean).join(' · ');
+  }
+
+  function propertySummaryLine(p) {
+    if (!p) return '';
+    return [
+      p.bedrooms != null ? `${p.bedrooms} bed` : null,
+      p.bathrooms != null ? `${p.bathrooms} bath` : null,
+      p.areaSqm != null ? `${p.areaSqm} m²` : null,
+      p.saleOrRent === 'rent' ? 'For rent' : p.saleOrRent === 'sale' ? 'For sale' : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
 
   const COUNTRY_LABELS = { NG: 'Nigeria', KE: 'Kenya', GH: 'Ghana', ZA: 'South Africa' };
 
@@ -63,6 +90,8 @@
             <option value="product" ${l.listingType === 'product' ? 'selected' : ''}>Product</option>
             <option value="service" ${l.listingType === 'service' ? 'selected' : ''}>Service</option>
             <option value="invention" ${l.listingType === 'invention' ? 'selected' : ''}>Invention</option>
+            <option value="vehicle" ${l.listingType === 'vehicle' ? 'selected' : ''}>Vehicle</option>
+            <option value="real_estate" ${l.listingType === 'real_estate' ? 'selected' : ''}>Real Estate</option>
           </select>
         </div>
         <div class="field"><label>Title</label><input class="lf-title" required value="${escapeHtml(l.title ?? '')}" /></div>
@@ -72,6 +101,70 @@
           <datalist class="lf-category-list"></datalist>
         </div>
         <div class="field"><label>Description</label><textarea class="lf-description" rows="3">${escapeHtml(l.description ?? '')}</textarea></div>
+        <div class="lf-vehicle-fields" ${l.listingType === 'vehicle' ? '' : 'hidden'}>
+          <h3 style="font-size:0.9rem;margin:var(--space-3) 0 0">Vehicle details (optional)</h3>
+          <div class="field inline-form">
+            <div><label>Make</label><input class="lf-v-make" value="${escapeHtml(l.vehicleDetail?.make ?? '')}" placeholder="e.g. Toyota" /></div>
+            <div><label>Model</label><input class="lf-v-model" value="${escapeHtml(l.vehicleDetail?.model ?? '')}" placeholder="e.g. Corolla" /></div>
+          </div>
+          <div class="field inline-form">
+            <div><label>Year</label><input class="lf-v-year" type="number" min="1900" max="2100" value="${l.vehicleDetail?.year ?? ''}" /></div>
+            <div><label>Mileage (km)</label><input class="lf-v-mileage" type="number" min="0" value="${l.vehicleDetail?.mileageKm ?? ''}" /></div>
+          </div>
+          <div class="field inline-form">
+            <div><label>Transmission</label>
+              <select class="lf-v-transmission tenant-select">
+                <option value="" ${!l.vehicleDetail?.transmission ? 'selected' : ''}>&mdash;</option>
+                <option value="manual" ${l.vehicleDetail?.transmission === 'manual' ? 'selected' : ''}>Manual</option>
+                <option value="automatic" ${l.vehicleDetail?.transmission === 'automatic' ? 'selected' : ''}>Automatic</option>
+              </select>
+            </div>
+            <div><label>Fuel type</label>
+              <select class="lf-v-fuel tenant-select">
+                <option value="" ${!l.vehicleDetail?.fuelType ? 'selected' : ''}>&mdash;</option>
+                <option value="petrol" ${l.vehicleDetail?.fuelType === 'petrol' ? 'selected' : ''}>Petrol</option>
+                <option value="diesel" ${l.vehicleDetail?.fuelType === 'diesel' ? 'selected' : ''}>Diesel</option>
+                <option value="electric" ${l.vehicleDetail?.fuelType === 'electric' ? 'selected' : ''}>Electric</option>
+                <option value="hybrid" ${l.vehicleDetail?.fuelType === 'hybrid' ? 'selected' : ''}>Hybrid</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label>Condition</label>
+            <select class="lf-v-condition tenant-select">
+              <option value="" ${!l.vehicleDetail?.condition ? 'selected' : ''}>&mdash;</option>
+              <option value="new" ${l.vehicleDetail?.condition === 'new' ? 'selected' : ''}>New</option>
+              <option value="used" ${l.vehicleDetail?.condition === 'used' ? 'selected' : ''}>Used</option>
+            </select>
+          </div>
+        </div>
+        <div class="lf-property-fields" ${l.listingType === 'real_estate' ? '' : 'hidden'}>
+          <h3 style="font-size:0.9rem;margin:var(--space-3) 0 0">Property details (optional)</h3>
+          <div class="field inline-form">
+            <div><label>Property type</label>
+              <select class="lf-p-type tenant-select">
+                <option value="" ${!l.propertyDetail?.propertyType ? 'selected' : ''}>&mdash;</option>
+                <option value="house" ${l.propertyDetail?.propertyType === 'house' ? 'selected' : ''}>House</option>
+                <option value="apartment" ${l.propertyDetail?.propertyType === 'apartment' ? 'selected' : ''}>Apartment</option>
+                <option value="land" ${l.propertyDetail?.propertyType === 'land' ? 'selected' : ''}>Land</option>
+                <option value="commercial" ${l.propertyDetail?.propertyType === 'commercial' ? 'selected' : ''}>Commercial</option>
+                <option value="other" ${l.propertyDetail?.propertyType === 'other' ? 'selected' : ''}>Other</option>
+              </select>
+            </div>
+            <div><label>For sale or rent?</label>
+              <select class="lf-p-sale-or-rent tenant-select">
+                <option value="" ${!l.propertyDetail?.saleOrRent ? 'selected' : ''}>&mdash;</option>
+                <option value="sale" ${l.propertyDetail?.saleOrRent === 'sale' ? 'selected' : ''}>For sale</option>
+                <option value="rent" ${l.propertyDetail?.saleOrRent === 'rent' ? 'selected' : ''}>For rent</option>
+              </select>
+            </div>
+          </div>
+          <div class="field inline-form">
+            <div><label>Bedrooms</label><input class="lf-p-bedrooms" type="number" min="0" value="${l.propertyDetail?.bedrooms ?? ''}" /></div>
+            <div><label>Bathrooms</label><input class="lf-p-bathrooms" type="number" min="0" value="${l.propertyDetail?.bathrooms ?? ''}" /></div>
+            <div><label>Area (m&sup2;)</label><input class="lf-p-area" type="number" min="0" value="${l.propertyDetail?.areaSqm ?? ''}" /></div>
+          </div>
+        </div>
         <div class="field">
           <label>Pricing</label>
           <select class="lf-price-type tenant-select">
@@ -127,14 +220,24 @@
     const form = container.querySelector('.listing-form');
     const typeSelect = container.querySelector('.lf-type');
     const categoryList = container.querySelector('.lf-category-list');
+    const vehicleFields = container.querySelector('.lf-vehicle-fields');
+    const propertyFields = container.querySelector('.lf-property-fields');
 
     function refreshCategoryOptions() {
       categoryList.innerHTML = (CATEGORY_SUGGESTIONS[typeSelect.value] || [])
         .map((c) => `<option value="${escapeHtml(c)}"></option>`)
         .join('');
     }
+    function refreshTypeFields() {
+      vehicleFields.hidden = typeSelect.value !== 'vehicle';
+      propertyFields.hidden = typeSelect.value !== 'real_estate';
+    }
     refreshCategoryOptions();
-    typeSelect.addEventListener('change', refreshCategoryOptions);
+    refreshTypeFields();
+    typeSelect.addEventListener('change', () => {
+      refreshCategoryOptions();
+      refreshTypeFields();
+    });
 
     const alertBox = container.querySelector('.listing-form-alert');
 
@@ -183,6 +286,31 @@
         contactMethod: container.querySelector('.lf-contact-method').value,
         contactValue: container.querySelector('.lf-contact-value').value.trim(),
       };
+
+      if (payload.listingType === 'vehicle') {
+        const year = container.querySelector('.lf-v-year').value;
+        const mileage = container.querySelector('.lf-v-mileage').value;
+        payload.vehicleDetail = {
+          make: container.querySelector('.lf-v-make').value.trim() || undefined,
+          model: container.querySelector('.lf-v-model').value.trim() || undefined,
+          year: year !== '' ? Number(year) : undefined,
+          mileageKm: mileage !== '' ? Number(mileage) : undefined,
+          transmission: container.querySelector('.lf-v-transmission').value || undefined,
+          fuelType: container.querySelector('.lf-v-fuel').value || undefined,
+          condition: container.querySelector('.lf-v-condition').value || undefined,
+        };
+      } else if (payload.listingType === 'real_estate') {
+        const bedrooms = container.querySelector('.lf-p-bedrooms').value;
+        const bathrooms = container.querySelector('.lf-p-bathrooms').value;
+        const area = container.querySelector('.lf-p-area').value;
+        payload.propertyDetail = {
+          propertyType: container.querySelector('.lf-p-type').value || undefined,
+          saleOrRent: container.querySelector('.lf-p-sale-or-rent').value || undefined,
+          bedrooms: bedrooms !== '' ? Number(bedrooms) : undefined,
+          bathrooms: bathrooms !== '' ? Number(bathrooms) : undefined,
+          areaSqm: area !== '' ? Number(area) : undefined,
+        };
+      }
 
       const listingId = form.dataset.listingId;
       const submitBtn = form.querySelector('button[type="submit"]');
@@ -368,11 +496,14 @@
 
   function listingCardHtml(l, hashBase) {
     const distance = l.distanceKm !== undefined ? `<div class="meta">${l.distanceKm} km away</div>` : '';
+    const vehicleLine = l.vehicleDetail ? `<div class="meta">${escapeHtml(vehicleSummaryLine(l.vehicleDetail))}</div>` : '';
+    const propertyLine = l.propertyDetail ? `<div class="meta">${escapeHtml(propertySummaryLine(l.propertyDetail))}</div>` : '';
     return `
       <a class="service-card" href="#/${hashBase}/${l.id}">
         ${l.images[0] ? `<img src="${escapeHtml(l.images[0].url)}" alt="" style="width:100%;border-radius:8px;margin-bottom:var(--space-2);aspect-ratio:4/3;object-fit:cover" />` : ''}
         <div class="name">${escapeHtml(l.title)}</div>
         <div class="tenant">${LISTING_TYPE_LABELS[l.listingType] ?? ''} · ${escapeHtml(l.category)}</div>
+        ${vehicleLine}${propertyLine}
         <div class="price">${priceLabel(l)}</div>
         <div class="meta">${escapeHtml(l.locationText || COUNTRY_LABELS[l.countryCode] || '')}</div>
         ${distance}
@@ -580,6 +711,8 @@
             <option value="product" ${filters.listingType === 'product' ? 'selected' : ''}>Products</option>
             <option value="service" ${filters.listingType === 'service' ? 'selected' : ''}>Services</option>
             <option value="invention" ${filters.listingType === 'invention' ? 'selected' : ''}>Inventions</option>
+            <option value="vehicle" ${filters.listingType === 'vehicle' ? 'selected' : ''}>Vehicles</option>
+            <option value="real_estate" ${filters.listingType === 'real_estate' ? 'selected' : ''}>Real Estate</option>
           </select>
         </div>
         <div class="field">
@@ -734,6 +867,8 @@
             : ''
         }
         <div class="tenant" style="margin:var(--space-2) 0">${LISTING_TYPE_LABELS[listing.listingType] ?? ''} · ${escapeHtml(listing.category)}</div>
+        ${listing.vehicleDetail ? `<p style="color:var(--color-text-muted)">${escapeHtml(vehicleSummaryLine(listing.vehicleDetail))}</p>` : ''}
+        ${listing.propertyDetail ? `<p style="color:var(--color-text-muted)">${escapeHtml(propertySummaryLine(listing.propertyDetail))}</p>` : ''}
         <p>${escapeHtml(listing.description ?? '')}</p>
         <div class="price" style="font-size:1.1rem;margin:var(--space-2) 0">${priceLabel(listing)}</div>
         ${listing.locationText ? `<p style="color:var(--color-text-muted)">${escapeHtml(listing.locationText)}${listing.countryCode ? `, ${COUNTRY_LABELS[listing.countryCode] ?? escapeHtml(listing.countryCode)}` : ''}</p>` : ''}

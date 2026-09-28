@@ -1,7 +1,14 @@
 import { ForbiddenException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { AuditService } from '../audit/audit.service';
-import { CreateListingDto, DecideListingDto, DiscoverListingsQueryDto, UpdateListingDto } from './dto/listing.dto';
+import {
+  CreateListingDto,
+  DecideListingDto,
+  DiscoverListingsQueryDto,
+  PropertyDetailDto,
+  UpdateListingDto,
+  VehicleDetailDto,
+} from './dto/listing.dto';
 
 // Default search radius (km) when the customer's position is known but
 // they haven't picked a specific radius (US-004/US-009).
@@ -38,6 +45,48 @@ type ImageRow = {
   position: number;
 };
 
+// One-to-one detail rows for the two vertical listing types
+// (migration 025) -- present only when listing_type is 'vehicle' or
+// 'real_estate' respectively, and only once the owner has actually
+// filled in at least one structured field.
+type VehicleDetailRow = {
+  listing_id: string;
+  make: string | null;
+  model: string | null;
+  year: number | null;
+  mileage_km: number | null;
+  transmission: string | null;
+  fuel_type: string | null;
+  condition: string | null;
+};
+
+type PropertyDetailRow = {
+  listing_id: string;
+  property_type: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  area_sqm: string | null; // NUMERIC comes back as string from pg
+  sale_or_rent: string | null;
+};
+
+export interface VehicleDetail {
+  make: string | null;
+  model: string | null;
+  year: number | null;
+  mileageKm: number | null;
+  transmission: string | null;
+  fuelType: string | null;
+  condition: string | null;
+}
+
+export interface PropertyDetail {
+  propertyType: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  areaSqm: number | null;
+  saleOrRent: string | null;
+}
+
 export interface ListingDetail {
   id: string;
   ownerUserId: string;
@@ -62,6 +111,12 @@ export interface ListingDetail {
   createdAt: string;
   updatedAt: string;
   images: { id: string; url: string; position: number }[];
+  // Only present when listingType is 'vehicle' / 'real_estate' AND at
+  // least one structured field was ever saved for this listing — see
+  // migration 025's comment for why these are separate one-to-one
+  // tables rather than extra columns on `listing` itself.
+  vehicleDetail?: VehicleDetail;
+  propertyDetail?: PropertyDetail;
 }
 
 const EDITABLE_STATUSES = ['draft', 'pending_review', 'published', 'paused', 'rejected'];
@@ -117,8 +172,15 @@ export class ListingService {
       ],
     );
 
+    if (dto.listingType === 'vehicle' && dto.vehicleDetail) {
+      await this.upsertVehicleDetail(row.id, dto.vehicleDetail);
+    }
+    if (dto.listingType === 'real_estate' && dto.propertyDetail) {
+      await this.upsertPropertyDetail(row.id, dto.propertyDetail);
+    }
+
     await this.audit.record({ actorUserId: ownerUserId, action: 'listing.create', targetType: 'listing', targetId: row.id });
-    return this.toDetail(row, []);
+    return this.toDetail(row, [], undefined, await this.vehicleDetailFor(row.id), await this.propertyDetailFor(row.id));
   }
 
   async update(ownerUserId: string, listingId: string, dto: UpdateListingDto): Promise<ListingDetail> {
@@ -166,8 +228,21 @@ export class ListingService {
       ],
     );
 
+    if (row.listing_type === 'vehicle' && dto.vehicleDetail) {
+      await this.upsertVehicleDetail(listingId, dto.vehicleDetail);
+    }
+    if (row.listing_type === 'real_estate' && dto.propertyDetail) {
+      await this.upsertPropertyDetail(listingId, dto.propertyDetail);
+    }
+
     await this.audit.record({ actorUserId: ownerUserId, action: 'listing.update', targetType: 'listing', targetId: listingId });
-    return this.toDetail(row, await this.imagesFor(listingId));
+    return this.toDetail(
+      row,
+      await this.imagesFor(listingId),
+      undefined,
+      await this.vehicleDetailFor(listingId),
+      await this.propertyDetailFor(listingId),
+    );
   }
 
   async submit(ownerUserId: string, listingId: string): Promise<ListingDetail> {
@@ -182,7 +257,13 @@ export class ListingService {
       [listingId],
     );
     await this.audit.record({ actorUserId: ownerUserId, action: 'listing.submit', targetType: 'listing', targetId: listingId });
-    return this.toDetail(row, await this.imagesFor(listingId));
+    return this.toDetail(
+      row,
+      await this.imagesFor(listingId),
+      undefined,
+      await this.vehicleDetailFor(listingId),
+      await this.propertyDetailFor(listingId),
+    );
   }
 
   async pause(ownerUserId: string, listingId: string): Promise<ListingDetail> {
@@ -195,7 +276,13 @@ export class ListingService {
       [listingId],
     );
     await this.audit.record({ actorUserId: ownerUserId, action: 'listing.pause', targetType: 'listing', targetId: listingId });
-    return this.toDetail(row, await this.imagesFor(listingId));
+    return this.toDetail(
+      row,
+      await this.imagesFor(listingId),
+      undefined,
+      await this.vehicleDetailFor(listingId),
+      await this.propertyDetailFor(listingId),
+    );
   }
 
   async resume(ownerUserId: string, listingId: string): Promise<ListingDetail> {
@@ -210,7 +297,13 @@ export class ListingService {
       [listingId],
     );
     await this.audit.record({ actorUserId: ownerUserId, action: 'listing.resume', targetType: 'listing', targetId: listingId });
-    return this.toDetail(row, await this.imagesFor(listingId));
+    return this.toDetail(
+      row,
+      await this.imagesFor(listingId),
+      undefined,
+      await this.vehicleDetailFor(listingId),
+      await this.propertyDetailFor(listingId),
+    );
   }
 
   async archive(ownerUserId: string, listingId: string): Promise<ListingDetail> {
@@ -223,7 +316,13 @@ export class ListingService {
       [listingId],
     );
     await this.audit.record({ actorUserId: ownerUserId, action: 'listing.archive', targetType: 'listing', targetId: listingId });
-    return this.toDetail(row, await this.imagesFor(listingId));
+    return this.toDetail(
+      row,
+      await this.imagesFor(listingId),
+      undefined,
+      await this.vehicleDetailFor(listingId),
+      await this.propertyDetailFor(listingId),
+    );
   }
 
   async listMine(ownerUserId: string): Promise<ListingDetail[]> {
@@ -234,16 +333,32 @@ export class ListingService {
     if (rows.length === 0) {
       return [];
     }
-    const images = await this.db.query<ImageRow>(
-      `SELECT * FROM listing_image WHERE listing_id = ANY($1::uuid[]) ORDER BY position ASC`,
-      [rows.map((r) => r.id)],
+    const ids = rows.map((r) => r.id);
+    const [images, vehicleDetails, propertyDetails] = await Promise.all([
+      this.db.query<ImageRow>(`SELECT * FROM listing_image WHERE listing_id = ANY($1::uuid[]) ORDER BY position ASC`, [ids]),
+      this.db.query<VehicleDetailRow>(`SELECT * FROM listing_vehicle_detail WHERE listing_id = ANY($1::uuid[])`, [ids]),
+      this.db.query<PropertyDetailRow>(`SELECT * FROM listing_property_detail WHERE listing_id = ANY($1::uuid[])`, [ids]),
+    ]);
+    return rows.map((row) =>
+      this.toDetail(
+        row,
+        images.filter((img) => img.listing_id === row.id),
+        undefined,
+        vehicleDetails.find((v) => v.listing_id === row.id),
+        propertyDetails.find((p) => p.listing_id === row.id),
+      ),
     );
-    return rows.map((row) => this.toDetail(row, images.filter((img) => img.listing_id === row.id)));
   }
 
   async getOwned(ownerUserId: string, listingId: string): Promise<ListingDetail> {
     const row = await this.mustOwn(ownerUserId, listingId);
-    return this.toDetail(row, await this.imagesFor(listingId));
+    return this.toDetail(
+      row,
+      await this.imagesFor(listingId),
+      undefined,
+      await this.vehicleDetailFor(listingId),
+      await this.propertyDetailFor(listingId),
+    );
   }
 
   /** EDITABLE_STATUSES gate: whether images can still be added/removed from this listing. */
@@ -310,6 +425,39 @@ export class ListingService {
       params.push(query.maxPrice);
       conditions.push(`(price_minor_units IS NOT NULL AND price_minor_units <= $${params.length})`);
     }
+    // Vehicle/real-estate filters join into their own detail table, so
+    // they're applied as an EXISTS subquery rather than a plain
+    // condition on `listing` itself.
+    if (query.make) {
+      params.push(`%${query.make}%`);
+      conditions.push(
+        `EXISTS (SELECT 1 FROM listing_vehicle_detail vd WHERE vd.listing_id = listing.id AND vd.make ILIKE $${params.length})`,
+      );
+    }
+    if (query.minYear !== undefined) {
+      params.push(query.minYear);
+      conditions.push(
+        `EXISTS (SELECT 1 FROM listing_vehicle_detail vd WHERE vd.listing_id = listing.id AND vd.year >= $${params.length})`,
+      );
+    }
+    if (query.maxYear !== undefined) {
+      params.push(query.maxYear);
+      conditions.push(
+        `EXISTS (SELECT 1 FROM listing_vehicle_detail vd WHERE vd.listing_id = listing.id AND vd.year <= $${params.length})`,
+      );
+    }
+    if (query.minBedrooms !== undefined) {
+      params.push(query.minBedrooms);
+      conditions.push(
+        `EXISTS (SELECT 1 FROM listing_property_detail pd WHERE pd.listing_id = listing.id AND pd.bedrooms >= $${params.length})`,
+      );
+    }
+    if (query.saleOrRent) {
+      params.push(query.saleOrRent);
+      conditions.push(
+        `EXISTS (SELECT 1 FROM listing_property_detail pd WHERE pd.listing_id = listing.id AND pd.sale_or_rent = $${params.length})`,
+      );
+    }
 
     let distanceSelect = 'NULL::DOUBLE PRECISION AS distance_km';
     const hasPosition = query.lat !== undefined && query.lng !== undefined;
@@ -347,7 +495,7 @@ export class ListingService {
 
     const rows = await this.db.query<ListingRow & { distance_km: number | null }>(
       `SELECT * FROM (
-         SELECT *, ${distanceSelect}
+         SELECT listing.*, ${distanceSelect}
          FROM listing
          WHERE ${conditions.join(' AND ')}
        ) sub
@@ -359,12 +507,20 @@ export class ListingService {
     if (rows.length === 0) {
       return [];
     }
-    const images = await this.db.query<ImageRow>(
-      `SELECT * FROM listing_image WHERE listing_id = ANY($1::uuid[]) ORDER BY position ASC`,
-      [rows.map((r) => r.id)],
-    );
+    const ids = rows.map((r) => r.id);
+    const [images, vehicleDetails, propertyDetails] = await Promise.all([
+      this.db.query<ImageRow>(`SELECT * FROM listing_image WHERE listing_id = ANY($1::uuid[]) ORDER BY position ASC`, [ids]),
+      this.db.query<VehicleDetailRow>(`SELECT * FROM listing_vehicle_detail WHERE listing_id = ANY($1::uuid[])`, [ids]),
+      this.db.query<PropertyDetailRow>(`SELECT * FROM listing_property_detail WHERE listing_id = ANY($1::uuid[])`, [ids]),
+    ]);
     return rows.map((row) =>
-      this.toDetail(row, images.filter((img) => img.listing_id === row.id), row.distance_km ?? undefined),
+      this.toDetail(
+        row,
+        images.filter((img) => img.listing_id === row.id),
+        row.distance_km ?? undefined,
+        vehicleDetails.find((v) => v.listing_id === row.id),
+        propertyDetails.find((p) => p.listing_id === row.id),
+      ),
     );
   }
 
@@ -373,7 +529,13 @@ export class ListingService {
     if (!row) {
       throw new NotFoundException('Listing not found.');
     }
-    return this.toDetail(row, await this.imagesFor(listingId));
+    return this.toDetail(
+      row,
+      await this.imagesFor(listingId),
+      undefined,
+      await this.vehicleDetailFor(listingId),
+      await this.propertyDetailFor(listingId),
+    );
   }
 
   // -- Admin moderation ---------------------------------------------------
@@ -389,12 +551,20 @@ export class ListingService {
     if (rows.length === 0) {
       return [];
     }
-    const images = await this.db.query<ImageRow>(
-      `SELECT * FROM listing_image WHERE listing_id = ANY($1::uuid[]) ORDER BY position ASC`,
-      [rows.map((r) => r.id)],
-    );
+    const ids = rows.map((r) => r.id);
+    const [images, vehicleDetails, propertyDetails] = await Promise.all([
+      this.db.query<ImageRow>(`SELECT * FROM listing_image WHERE listing_id = ANY($1::uuid[]) ORDER BY position ASC`, [ids]),
+      this.db.query<VehicleDetailRow>(`SELECT * FROM listing_vehicle_detail WHERE listing_id = ANY($1::uuid[])`, [ids]),
+      this.db.query<PropertyDetailRow>(`SELECT * FROM listing_property_detail WHERE listing_id = ANY($1::uuid[])`, [ids]),
+    ]);
     return rows.map((row) => ({
-      ...this.toDetail(row, images.filter((img) => img.listing_id === row.id)),
+      ...this.toDetail(
+        row,
+        images.filter((img) => img.listing_id === row.id),
+        undefined,
+        vehicleDetails.find((v) => v.listing_id === row.id),
+        propertyDetails.find((p) => p.listing_id === row.id),
+      ),
       ownerName: row.owner_name,
     }));
   }
@@ -450,8 +620,21 @@ export class ListingService {
       ],
     );
 
+    if (row.listing_type === 'vehicle' && dto.vehicleDetail) {
+      await this.upsertVehicleDetail(listingId, dto.vehicleDetail);
+    }
+    if (row.listing_type === 'real_estate' && dto.propertyDetail) {
+      await this.upsertPropertyDetail(listingId, dto.propertyDetail);
+    }
+
     await this.audit.record({ actorUserId: adminUserId, action: 'listing.admin_update', targetType: 'listing', targetId: listingId });
-    return this.toDetail(row, await this.imagesFor(listingId));
+    return this.toDetail(
+      row,
+      await this.imagesFor(listingId),
+      undefined,
+      await this.vehicleDetailFor(listingId),
+      await this.propertyDetailFor(listingId),
+    );
   }
 
   /**
@@ -497,7 +680,13 @@ export class ListingService {
       targetId: listingId,
     });
 
-    return this.toDetail(row, await this.imagesFor(listingId));
+    return this.toDetail(
+      row,
+      await this.imagesFor(listingId),
+      undefined,
+      await this.vehicleDetailFor(listingId),
+      await this.propertyDetailFor(listingId),
+    );
   }
 
   // -- Shared helpers -------------------------------------------------------
@@ -506,7 +695,57 @@ export class ListingService {
     return this.db.query<ImageRow>(`SELECT * FROM listing_image WHERE listing_id = $1 ORDER BY position ASC`, [listingId]);
   }
 
-  private toDetail(row: ListingRow, images: ImageRow[], distanceKm?: number): ListingDetail {
+  private async vehicleDetailFor(listingId: string): Promise<VehicleDetailRow | undefined> {
+    const [row] = await this.db.query<VehicleDetailRow>(`SELECT * FROM listing_vehicle_detail WHERE listing_id = $1`, [listingId]);
+    return row;
+  }
+
+  private async propertyDetailFor(listingId: string): Promise<PropertyDetailRow | undefined> {
+    const [row] = await this.db.query<PropertyDetailRow>(`SELECT * FROM listing_property_detail WHERE listing_id = $1`, [listingId]);
+    return row;
+  }
+
+  // Upsert (ON CONFLICT) rather than delete+insert, since the primary
+  // key IS listing_id — one row per listing, keyed the same way
+  // BusinessService.updateLicenseNumber() keys off tenant_id.
+  private async upsertVehicleDetail(listingId: string, dto: VehicleDetailDto): Promise<void> {
+    await this.db.query(
+      `INSERT INTO listing_vehicle_detail (listing_id, make, model, year, mileage_km, transmission, fuel_type, condition)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (listing_id) DO UPDATE SET
+         make = EXCLUDED.make, model = EXCLUDED.model, year = EXCLUDED.year, mileage_km = EXCLUDED.mileage_km,
+         transmission = EXCLUDED.transmission, fuel_type = EXCLUDED.fuel_type, condition = EXCLUDED.condition`,
+      [
+        listingId,
+        dto.make ?? null,
+        dto.model ?? null,
+        dto.year ?? null,
+        dto.mileageKm ?? null,
+        dto.transmission ?? null,
+        dto.fuelType ?? null,
+        dto.condition ?? null,
+      ],
+    );
+  }
+
+  private async upsertPropertyDetail(listingId: string, dto: PropertyDetailDto): Promise<void> {
+    await this.db.query(
+      `INSERT INTO listing_property_detail (listing_id, property_type, bedrooms, bathrooms, area_sqm, sale_or_rent)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (listing_id) DO UPDATE SET
+         property_type = EXCLUDED.property_type, bedrooms = EXCLUDED.bedrooms, bathrooms = EXCLUDED.bathrooms,
+         area_sqm = EXCLUDED.area_sqm, sale_or_rent = EXCLUDED.sale_or_rent`,
+      [listingId, dto.propertyType ?? null, dto.bedrooms ?? null, dto.bathrooms ?? null, dto.areaSqm ?? null, dto.saleOrRent ?? null],
+    );
+  }
+
+  private toDetail(
+    row: ListingRow,
+    images: ImageRow[],
+    distanceKm?: number,
+    vehicleDetail?: VehicleDetailRow,
+    propertyDetail?: PropertyDetailRow,
+  ): ListingDetail {
     return {
       id: row.id,
       ownerUserId: row.owner_user_id,
@@ -529,6 +768,28 @@ export class ListingService {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       images: images.map((img) => ({ id: img.id, url: `/uploads/${img.storage_key}`, position: img.position })),
+      vehicleDetail:
+        row.listing_type === 'vehicle' && vehicleDetail
+          ? {
+              make: vehicleDetail.make,
+              model: vehicleDetail.model,
+              year: vehicleDetail.year,
+              mileageKm: vehicleDetail.mileage_km,
+              transmission: vehicleDetail.transmission,
+              fuelType: vehicleDetail.fuel_type,
+              condition: vehicleDetail.condition,
+            }
+          : undefined,
+      propertyDetail:
+        row.listing_type === 'real_estate' && propertyDetail
+          ? {
+              propertyType: propertyDetail.property_type,
+              bedrooms: propertyDetail.bedrooms,
+              bathrooms: propertyDetail.bathrooms,
+              areaSqm: propertyDetail.area_sqm !== null ? Number(propertyDetail.area_sqm) : null,
+              saleOrRent: propertyDetail.sale_or_rent,
+            }
+          : undefined,
     };
   }
 }

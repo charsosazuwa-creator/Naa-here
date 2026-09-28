@@ -198,7 +198,7 @@
         (l) => `
       <tr class="submission-row" data-id="${escapeHtml(l.id)}">
         <td>${escapeHtml(l.title)}</td>
-        <td>${escapeHtml(l.listingType)}</td>
+        <td>${escapeHtml(l.listingType.replace(/_/g, ' '))}</td>
         <td>${escapeHtml(l.ownerName)}</td>
         <td>${escapeHtml(priceLabel(l))}</td>
         <td>${formatDateTime(l.updatedAt)}</td>
@@ -209,6 +209,16 @@
       <tr class="submission-detail" data-detail-for="${escapeHtml(l.id)}" hidden>
         <td colspan="6">
           <p data-view-for="${escapeHtml(l.id)}">${escapeHtml(l.description ?? '')}</p>
+          ${
+            l.vehicleDetail
+              ? `<p style="font-size:0.85rem;color:var(--color-text-muted)">Vehicle: ${escapeHtml([l.vehicleDetail.year, l.vehicleDetail.make, l.vehicleDetail.model].filter(Boolean).join(' ') || '—')}${l.vehicleDetail.mileageKm != null ? ` · ${l.vehicleDetail.mileageKm.toLocaleString()} km` : ''}${l.vehicleDetail.transmission ? ` · ${l.vehicleDetail.transmission}` : ''}${l.vehicleDetail.fuelType ? ` · ${l.vehicleDetail.fuelType}` : ''}${l.vehicleDetail.condition ? ` · ${l.vehicleDetail.condition}` : ''}</p>`
+              : ''
+          }
+          ${
+            l.propertyDetail
+              ? `<p style="font-size:0.85rem;color:var(--color-text-muted)">Property: ${escapeHtml(l.propertyDetail.propertyType ?? '—')}${l.propertyDetail.bedrooms != null ? ` · ${l.propertyDetail.bedrooms} bed` : ''}${l.propertyDetail.bathrooms != null ? ` · ${l.propertyDetail.bathrooms} bath` : ''}${l.propertyDetail.areaSqm != null ? ` · ${l.propertyDetail.areaSqm} m²` : ''}${l.propertyDetail.saleOrRent ? ` · ${l.propertyDetail.saleOrRent === 'rent' ? 'for rent' : 'for sale'}` : ''}</p>`
+              : ''
+          }
           <div class="listing-review-images" data-images-for="${escapeHtml(l.id)}">
             ${
               l.images.length
