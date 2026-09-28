@@ -741,7 +741,7 @@
     }
   }
 
-  async function renderMarketBrowse(Api, filters, hashBase) {
+  async function renderMarketBrowse(Api, filters, hashBase, browseHash = hashBase) {
     const query = new URLSearchParams(
       Object.entries({
         listingType: filters.listingType,
@@ -866,7 +866,7 @@
             radius: filters.radiusKm || '',
           }).filter(([, v]) => v),
         ).toString();
-        const newHash = `#/${hashBase}${q ? `?${q}` : ''}`;
+        const newHash = `#/${browseHash}${q ? `?${q}` : ''}`;
         if (window.location.hash === newHash) {
           window.dispatchEvent(new HashChangeEvent('hashchange'));
         } else {
@@ -895,7 +895,7 @@
                 radius: filters.radiusKm || '',
               }).filter(([, v]) => v),
             ).toString();
-            const newHash = `#/${hashBase}?${q}`;
+            const newHash = `#/${browseHash}?${q}`;
             if (window.location.hash === newHash) {
               window.dispatchEvent(new HashChangeEvent('hashchange'));
             } else {

@@ -738,7 +738,7 @@ views.market = async (params) => {
     lng: params.get('lng') || '',
     radiusKm: params.get('radius') || '',
   };
-  return ListingUI.renderMarketBrowse(Api, filters, 'market-item');
+  return ListingUI.renderMarketBrowse(Api, filters, 'market-item', 'market');
 };
 
 views['market-item'] = async (params, routeParams) => ListingUI.renderMarketDetail(Api, routeParams[0], 'market');
