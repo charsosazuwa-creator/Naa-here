@@ -211,6 +211,16 @@
           </select>
         </div>
         <div class="field"><label>Contact details</label><input class="lf-contact-value" required value="${escapeHtml(l.contactValue ?? '')}" placeholder="Shown publicly on this listing only" /></div>
+        <div class="field">
+          <label>Photos${existing ? ' — add more' : ''}</label>
+          <input class="lf-images" type="file" accept="image/jpeg,image/png,image/webp" multiple />
+          <p style="color:var(--color-text-muted);font-size:0.78rem;margin:4px 0 0">
+            JPEG, PNG or WebP, up to 5MB each, up to 6 images per listing.
+            ${existing ? 'Existing photos are managed from the "Images" button in the table above.' : ''}
+          </p>
+          <div class="lf-image-preview" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div>
+        </div>
+        <div class="lf-image-progress" style="color:var(--color-text-muted);font-size:0.78rem" hidden></div>
         <button class="primary" type="submit">${existing ? 'Save changes' : 'Create listing (draft)'}</button>
       </form>
     `;
@@ -240,6 +250,47 @@
     });
 
     const alertBox = container.querySelector('.listing-form-alert');
+
+    // Photos are picked here, before "Create"/"Save" is ever clicked --
+    // held in this array (rather than trusting the <input> element's own
+    // .files, which we need to mutate when a thumbnail is removed) and
+    // only actually uploaded (via Api.uploadListingImage, one call per
+    // file) once the listing itself has been created/updated below, since
+    // that's the first point a listing id exists to attach them to.
+    let selectedImageFiles = [];
+    const MAX_LISTING_IMAGES = 6;
+    const imageInput = container.querySelector('.lf-images');
+    const imagePreview = container.querySelector('.lf-image-preview');
+
+    function renderImagePreview() {
+      imagePreview.innerHTML = selectedImageFiles
+        .map((file, index) => {
+          const url = URL.createObjectURL(file);
+          return `
+            <div class="lf-image-preview-item" style="position:relative;width:72px;height:72px">
+              <img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:6px" />
+              <button type="button" class="lf-image-remove" data-index="${index}"
+                style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:#0009;color:#fff;cursor:pointer;line-height:1;font-size:12px">×</button>
+            </div>
+          `;
+        })
+        .join('');
+      imagePreview.querySelectorAll('.lf-image-remove').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          selectedImageFiles.splice(Number(btn.dataset.index), 1);
+          renderImagePreview();
+        });
+      });
+    }
+
+    if (imageInput) {
+      imageInput.addEventListener('change', () => {
+        const incoming = Array.from(imageInput.files || []);
+        selectedImageFiles = selectedImageFiles.concat(incoming).slice(0, MAX_LISTING_IMAGES);
+        imageInput.value = '';
+        renderImagePreview();
+      });
+    }
 
     // US-004/US-009: an optional map pin, filled in via the browser's
     // own geolocation rather than asking the owner to type coordinates.
@@ -314,18 +365,46 @@
 
       const listingId = form.dataset.listingId;
       const submitBtn = form.querySelector('button[type="submit"]');
+      const originalBtnText = submitBtn.textContent;
+      const files = selectedImageFiles.slice();
+      const progressBox = container.querySelector('.lf-image-progress');
       submitBtn.disabled = true;
       try {
+        let savedListing;
         if (listingId) {
-          await Api.updateListing(listingId, payload);
+          savedListing = await Api.updateListing(listingId, payload);
         } else {
-          await Api.createListing(payload);
+          savedListing = await Api.createListing(payload);
         }
+
+        if (files.length) {
+          const targetId = savedListing && savedListing.id ? savedListing.id : listingId;
+          const failures = [];
+          for (let i = 0; i < files.length; i += 1) {
+            submitBtn.textContent = `Uploading photo ${i + 1} of ${files.length}…`;
+            if (progressBox) {
+              progressBox.hidden = false;
+              progressBox.textContent = `Uploading photo ${i + 1} of ${files.length}…`;
+            }
+            try {
+              await Api.uploadListingImage(targetId, files[i]);
+            } catch (err) {
+              failures.push(`${files[i].name}: ${err.message}`);
+            }
+          }
+          if (failures.length && progressBox) {
+            progressBox.hidden = false;
+            progressBox.textContent = `Listing saved, but ${failures.length} photo(s) failed to upload — ${failures.join('; ')}`;
+          }
+        }
+
+        submitBtn.textContent = originalBtnText;
         onSaved();
       } catch (err) {
         alertBox.textContent = err.message;
         alertBox.hidden = false;
         submitBtn.disabled = false;
+        submitBtn.textContent = originalBtnText;
       }
     });
   }
