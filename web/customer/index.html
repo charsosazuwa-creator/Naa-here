@@ -7,33 +7,19 @@
 <link rel="stylesheet" href="../auth/tokens.css" />
 <link rel="stylesheet" href="../provider/app.css" />
 <link rel="stylesheet" href="app.css" />
-<!-- US-009: map view for the Marketplace browse page. Leaflet + OpenStreetMap
-     tiles — no API key needed. If this CDN script fails to load for any
-     reason, web/shared/listing-ui.js's renderMap() falls back to a
-     "map couldn't load" message and the list view keeps working. -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body class="no-tenant">
 <div class="shell">
   <header class="topbar">
-    <a class="brand" href="#/home" aria-label="Naa here home">
+    <div class="brand">
       <img src="../auth/assets/logo.png" alt="" />
       <span>- Find and book</span>
-    </a>
-    <button class="nav-toggle" id="nav-toggle" aria-label="Menu" aria-expanded="false" aria-controls="customer-nav">
-      <span></span><span></span><span></span>
-    </button>
-    <nav class="customer-nav" id="customer-nav">
-      <a href="#/home">Home</a>
+    </div>
+    <nav class="customer-nav">
       <a href="#/browse">Browse</a>
       <a href="#/market">Marketplace</a>
       <a href="#/bookings">My bookings</a>
       <a href="#/job-requests">Job requests</a>
-      <a href="#/my-listings">My Listings</a>
-      <a href="#/my-disputes">My Disputes</a>
-      <a href="#/conversations">Messages</a>
-      <a href="#/help">Help</a>
     </nav>
     <div class="topbar-right">
       <span id="user-name" style="font-size:0.88rem;color:var(--color-text-muted)"></span>
@@ -45,13 +31,6 @@
 </div>
 
 <script src="api.js"></script>
-<script src="../shared/listing-ui.js"></script>
-<script src="../shared/dispute-ui.js"></script>
-<script src="../shared/realtime-ws.js"></script>
-<script src="../shared/call-ui.js"></script>
-<script src="../shared/live-tracking.js"></script>
-<script src="../shared/help-ui.js"></script>
-<script src="help-content.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

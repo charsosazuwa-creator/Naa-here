@@ -512,7 +512,8 @@
       <p style="color:var(--color-text-muted);font-size:0.85rem">
         Products, services, and inventions you're advertising on the marketplace. A new listing starts
         as a draft; Submit for review sends it to a platform admin, and it becomes publicly visible
-        once approved.
+        once approved — anyone, signed in or not, can then find it on the
+        <a href="/customer/index.html#/market" target="_blank" rel="noopener">public Marketplace</a>.
       </p>
       <div class="panel">
         <table class="data-table">
