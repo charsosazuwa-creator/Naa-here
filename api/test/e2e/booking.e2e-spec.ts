@@ -460,7 +460,7 @@ class FakeClient {
     }
 
     if (sql.startsWith('INSERT INTO ledger_entry')) {
-      const [tenantId, bookingId, type, amountMinorUnits, currencyCode, createdBy, heldForDisputeId] = params as [
+      const [tenantId, bookingId, type, amountMinorUnits, currencyCode, _createdBy, heldForDisputeId] = params as [
         string,
         string | null,
         string,

@@ -1,12 +1,10 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyDto, ResendVerificationDto } from './dto/verify.dto';
 import { LoginDto, RefreshDto, LogoutDto, ForgotPasswordDto, ResetPasswordDto } from './dto/login.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUserId } from '../../common/decorators/current-user.decorator';
 
 /**
  * Routes exactly as listed in design section 15:

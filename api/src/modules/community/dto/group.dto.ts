@@ -1,4 +1,4 @@
-import { IsArray, IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 const VISIBILITY = ['public', 'private', 'hidden'] as const;
 const MEMBERSHIP_TYPE = ['open', 'request', 'invite_only'] as const;
