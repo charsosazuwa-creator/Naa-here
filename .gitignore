@@ -37,3 +37,8 @@ launcher/pgdata/
 # Ephemeral on Render's free plan regardless; never belongs in git.
 uploads/
 **/uploads/
+
+# Playwright smoke test output (e2e-smoke/)
+e2e-smoke/test-results/
+e2e-smoke/playwright-report/
+e2e-smoke/playwright/.cache/

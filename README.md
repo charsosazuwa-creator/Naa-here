@@ -4,6 +4,11 @@ This is the real, unmodified application code — the same API and web
 front end from the project — packaged to run entirely on your own
 computer so you can click through it in your own browser.
 
+Actively developing, testing, or QA'ing the app? See
+[`docs/DEV_QA.md`](docs/DEV_QA.md) for the full dev loop (hot reload,
+seed data, running the test suites, CI, and how this ties into
+`test.naahere.com` and production).
+
 ## What it needs
 
 - **Node.js 18 or newer.** If you don't have it, install it from

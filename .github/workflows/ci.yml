@@ -1,0 +1,192 @@
+name: CI
+
+# Runs on every push and pull request against main — this is the gate
+# that should catch problems before they reach test.naahere.com (QA)
+# or production. Nothing here deploys anything; Render still needs a
+# manual "Deploy latest commit" click after this goes green (see
+# docs/DEV_QA.md).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  api:
+    name: API — lint, build, unit + db tests
+    runs-on: ubuntu-latest
+
+    # A real Postgres, not SQLite or a mock — the app's row-level
+    # security (tenant isolation) and exclusion constraints
+    # (double-booking prevention) only exist in Postgres, and
+    # test/db/*.spec.ts exercises them against a real connection.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: marketplace_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Admin/owner connection — used to run migrations and to seed
+      # fixtures a test needs outside RLS. Never what the app itself
+      # connects as; see api/.env.example.
+      ADMIN_DATABASE_URL: postgres://postgres:postgres@localhost:5432/marketplace_ci
+      # What the API (and test/db/*.spec.ts) connects as once
+      # migrations have set its password — see db/migrations/003.
+      APP_RUNTIME_DATABASE_URL: postgres://app_runtime:ci-runtime-password@localhost:5432/marketplace_ci
+      APP_RUNTIME_PASSWORD: ci-runtime-password
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: api/package-lock.json
+
+      - name: Install dependencies
+        working-directory: api
+        run: npm ci
+
+      - name: Lint
+        working-directory: api
+        run: npm run lint
+
+      - name: Build
+        working-directory: api
+        run: npm run build
+
+      - name: Unit tests
+        working-directory: api
+        run: npm test
+
+      - name: Apply migrations
+        working-directory: api
+        env:
+          DATABASE_URL: ${{ env.ADMIN_DATABASE_URL }}
+        run: npm run db:migrate
+
+      - name: DB tests (RLS, booking exclusion constraint)
+        working-directory: api
+        env:
+          DATABASE_URL: ${{ env.APP_RUNTIME_DATABASE_URL }}
+        run: npm run test:db
+
+      # Known gap, not a flake: this suite's fake-DB layer (and some
+      # request payloads) predate the migration-018 business
+      # category/businessType rework and haven't been updated for it,
+      # so most of its tests currently fail against today's actual API
+      # contract. Running it in CI (rather than skipping it outright)
+      # keeps the exact failure count visible instead of silently
+      # bit-rotting further; continue-on-error keeps it from blocking
+      # merges until someone does that update pass. See
+      # docs/DEV_QA.md#known-test-gaps for the specifics and exactly
+      # which files/call sites need it.
+      - name: E2E tests (known gap — non-blocking, see docs/DEV_QA.md)
+        working-directory: api
+        continue-on-error: true
+        run: npm run test:e2e
+
+  smoke:
+    name: Browser smoke tests (Playwright)
+    runs-on: ubuntu-latest
+    # A real regression here is worth knowing about immediately, but
+    # this job is new and unproven across CI runs — keep it
+    # non-blocking until it's shown itself reliable for a while, then
+    # drop continue-on-error.
+    continue-on-error: true
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: marketplace_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: api/package-lock.json
+
+      - name: Install API dependencies
+        working-directory: api
+        run: npm ci
+
+      - name: Build API
+        working-directory: api
+        run: npm run build
+
+      - name: Migrate + seed
+        working-directory: api
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/marketplace_ci
+          APP_RUNTIME_PASSWORD: ci-runtime-password
+        run: |
+          npm run db:migrate
+          npm run db:seed
+
+      - name: Start API in background
+        working-directory: api
+        env:
+          NODE_ENV: development
+          PORT: '3000'
+          DATABASE_URL: postgres://app_runtime:ci-runtime-password@localhost:5432/marketplace_ci
+          JWT_SECRET: ci-jwt-secret-not-used-in-production-0000000000
+          JWT_ACCESS_TOKEN_TTL_SECONDS: '900'
+          REFRESH_TOKEN_TTL_DAYS: '30'
+          VERIFICATION_CODE_TTL_MINUTES: '15'
+          VERIFICATION_CODE_MAX_ATTEMPTS: '5'
+          LOGIN_MAX_FAILED_ATTEMPTS: '5'
+          LOGIN_LOCKOUT_MINUTES: '15'
+          CORS_ALLOWED_ORIGINS: ''
+          PAYMENT_WEBHOOK_SECRET: ci-webhook-secret-not-used-in-production
+        run: |
+          node dist/src/main.js &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/health/live && exit 0
+            sleep 1
+          done
+          echo "API never became healthy" >&2
+          exit 1
+
+      - name: Install smoke test dependencies + browser
+        working-directory: e2e-smoke
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run smoke tests
+        working-directory: e2e-smoke
+        env:
+          BASE_URL: http://localhost:3000
+        run: npm test
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e-smoke/playwright-report/
+          retention-days: 7

@@ -1,0 +1,12 @@
+{
+  "name": "naa-here-smoke-tests",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Playwright browser smoke tests — a small, deliberately starting scaffold covering the handful of flows already confirmed working during manual QA (see docs/DEV_QA.md). Extend this as regressions are found, rather than treating it as full coverage.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0"
+  }
+}
