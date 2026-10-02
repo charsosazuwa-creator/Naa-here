@@ -40,13 +40,28 @@ body {
   font-weight: 600;
   color: inherit;
   text-decoration: none;
+  min-width: 0;
+  flex-shrink: 1;
 }
-.topbar .brand img { height: 24px; }
+.topbar .brand img { height: 24px; flex-shrink: 0; }
+.topbar .brand span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .topbar .topbar-right {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-width: 0;
+  flex-shrink: 0;
+}
+.topbar .topbar-right #user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
 }
 
 .tenant-select {
@@ -157,6 +172,27 @@ body.no-tenant .sidebar { display: none; }
   }
   main.content {
     margin-left: 0;
+  }
+}
+
+/* Phone-width topbar: the brand tagline ("- Find and book" /
+   "- Provider portal") and the user-name + sign-out/nav controls
+   don't all fit on one line at narrow widths, and previously had no
+   shrink/truncation rules, so they visually overlapped. Drop the
+   tagline and tighten spacing instead. */
+@media (max-width: 480px) {
+  .topbar {
+    padding: 0 var(--space-2);
+    gap: var(--space-2);
+  }
+  .topbar .brand span {
+    display: none;
+  }
+  .topbar .topbar-right {
+    gap: var(--space-2);
+  }
+  .topbar .topbar-right #user-name {
+    display: none;
   }
 }
 
