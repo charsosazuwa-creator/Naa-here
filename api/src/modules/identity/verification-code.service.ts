@@ -104,6 +104,9 @@ This code expires in ${ttlMinutes} minutes. If you didn't request this, you can 
       this.logger.error(
         `Failed to send verification email (provider=${this.emailProvider.name}) to user=${userId}: ${(err as Error).message}`,
       );
+      this.logger.warn(
+        `[EMAIL SEND FAILED — code logged for manual recovery] user=${userId} purpose=${purpose} code=${code}`,
+      );
     }
   }
 
