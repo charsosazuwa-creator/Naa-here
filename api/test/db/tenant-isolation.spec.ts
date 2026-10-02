@@ -30,8 +30,16 @@ describeIfDb('Row-level security: tenant isolation', () => {
   beforeAll(async () => {
     pool = new Pool({ connectionString: DATABASE_URL });
 
+    // tenant.category_id has been NOT NULL since migration 018
+    // (open_categories) replaced the old free-text category column —
+    // look up a seeded business_category row rather than a literal id,
+    // since ids are gen_random_uuid() and not stable across runs.
     const { rows: tenants } = await pool.query(
-      `INSERT INTO tenant (name, country_code) VALUES ('Tenant A', 'NG'), ('Tenant B', 'NG') RETURNING id`,
+      `INSERT INTO tenant (name, country_code, category_id)
+       VALUES
+         ('Tenant A', 'NG', (SELECT id FROM business_category WHERE code = 'barber_salon')),
+         ('Tenant B', 'NG', (SELECT id FROM business_category WHERE code = 'barber_salon'))
+       RETURNING id`,
     );
     [tenantAId, tenantBId] = tenants.map((r) => r.id);
 

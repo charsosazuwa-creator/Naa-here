@@ -30,7 +30,12 @@ const describeIfDb = DATABASE_URL ? describe : describe.skip;
 
 async function tenantScopedClient(pool: Pool, tenantId: string): Promise<PoolClient> {
   const client = await pool.connect();
-  await client.query('SET app.tenant_id = $1', [tenantId]);
+  // Plain `SET x = $1` doesn't support bind parameters (SET is a
+  // utility command, not a regular statement) — this previously threw
+  // a syntax error on every run. set_config() does support parameters
+  // and is what DatabaseService itself uses in production (see
+  // database.service.ts); mirroring it here, same as that file.
+  await client.query('SELECT set_config($1, $2, false)', ['app.tenant_id', tenantId]);
   return client;
 }
 
@@ -47,9 +52,14 @@ describeIfDb('booking table: EXCLUDE constraint prevents double booking', () => 
 
     // tenant and app_user carry no RLS policy, so these two inserts run
     // fine on any app_runtime connection before a tenant context exists.
+    // tenant.category (free text) was replaced by tenant.category_id
+    // (NOT NULL, references business_category) in migration 018 —
+    // look up the seeded 'barber_salon' row rather than a literal id,
+    // since ids are gen_random_uuid() and not stable across runs.
     const { rows: tenants } = await pool.query(
-      `INSERT INTO tenant (name, country_code, category, verification_status)
-       VALUES ('Exclusion Test Salon', 'NG', 'barber_salon', 'verified') RETURNING id`,
+      `INSERT INTO tenant (name, country_code, category_id, verification_status)
+       VALUES ('Exclusion Test Salon', 'NG', (SELECT id FROM business_category WHERE code = 'barber_salon'), 'verified')
+       RETURNING id`,
     );
     tenantId = tenants[0].id;
 
