@@ -65,12 +65,21 @@ async function serviceById(serviceId) {
 const views = {};
 
 // ---------------------------------------------------------------------
-// Home: landing page with a hero, category shortcuts, a handful of
-// currently-published services, and the markets we operate in. Not
-// the default route (that's still Browse) — reached via the logo in
-// the header, or directly at #/home.
+// Home: the marketing landing page (hero, category shortcuts, a
+// handful of currently-published services, markets we operate in) for
+// a signed-out visitor, or a personalized dashboard for a signed-in
+// customer — see renderDashboard() below. Not the default route for
+// browsing (that's still Browse) — reached via the logo in the header,
+// or directly at #/home.
 // ---------------------------------------------------------------------
 views.home = async () => {
+  if (isSignedIn()) {
+    return renderDashboard();
+  }
+  return renderMarketingHome();
+};
+
+async function renderMarketingHome() {
   let popular = [];
   try {
     popular = (await Api.discoverServices('')).slice(0, 4);
@@ -144,7 +153,171 @@ views.home = async () => {
   `;
 
   return { title: 'Naa here', body };
-};
+}
+
+// ---------------------------------------------------------------------
+// Dashboard: a signed-in customer's personalized #/home — at-a-glance
+// upcoming bookings, open job requests/quotations awaiting a decision,
+// unread conversations, and marketplace listing status. Each section
+// reuses the same API calls and field shapes as its full page
+// (My bookings / Job requests / Messages / My Listings) so there's one
+// source of truth for what a booking/job-request/etc. object looks
+// like — this just shows a trimmed, most-relevant-first slice of each,
+// with a link through to the full list.
+// ---------------------------------------------------------------------
+
+const OPEN_BOOKING_STATUSES = new Set(['confirmed', 'in_progress']);
+const CLOSED_BOOKING_STATUSES = new Set(['cancelled', 'completed', 'no_show']);
+const OPEN_JOB_REQUEST_STATUSES = new Set(['requested', 'quoted']);
+
+async function renderDashboard() {
+  const user = currentUser();
+  const firstName = user?.fullName?.split(' ')[0] || 'there';
+
+  const [bookingsResult, jobRequestsResult, conversationsResult, listingsResult] = await Promise.allSettled([
+    Api.myBookings(),
+    Api.myJobRequests(),
+    Api.myConversations(),
+    Api.listMyListings(),
+  ]);
+
+  const bookings = bookingsResult.status === 'fulfilled' ? bookingsResult.value : null;
+  const jobRequests = jobRequestsResult.status === 'fulfilled' ? jobRequestsResult.value : null;
+  const conversations = conversationsResult.status === 'fulfilled' ? conversationsResult.value : null;
+  const listings = listingsResult.status === 'fulfilled' ? listingsResult.value : null;
+
+  const upcomingBookings = (bookings ?? [])
+    .filter((b) => !CLOSED_BOOKING_STATUSES.has(b.status))
+    .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))
+    .slice(0, 3);
+  await Promise.all(upcomingBookings.map((b) => serviceById(b.serviceId)));
+
+  const openJobRequests = (jobRequests ?? []).filter((r) => OPEN_JOB_REQUEST_STATUSES.has(r.status)).slice(0, 3);
+
+  const unreadConversations = (conversations ?? [])
+    .filter((c) => c.unreadCount > 0)
+    .sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
+  const totalUnread = unreadConversations.reduce((sum, c) => sum + c.unreadCount, 0);
+
+  const listingsNeedingAttention = (listings ?? [])
+    .filter((l) => l.status === 'draft' || l.status === 'rejected')
+    .slice(0, 3);
+  const publishedListingCount = (listings ?? []).filter((l) => l.status === 'published').length;
+
+  const section = (title, viewAllHref, loadFailed, contentHtml) => `
+    <section class="home-section dashboard-card">
+      <div class="dashboard-card-header">
+        <h2>${escapeHtml(title)}</h2>
+        <a href="${viewAllHref}" class="btn-plain">View all</a>
+      </div>
+      ${loadFailed ? '<p class="empty-state">Couldn’t load this right now — try refreshing.</p>' : contentHtml}
+    </section>
+  `;
+
+  const bookingsContent =
+    upcomingBookings.length === 0
+      ? '<p class="empty-state">No upcoming bookings — <a href="#/browse">browse services</a> to make your first one.</p>'
+      : `<ul class="dashboard-list">
+        ${upcomingBookings
+          .map((b) => {
+            const svc = state.serviceCache[b.serviceId];
+            return `<li>
+              <div class="dashboard-list-main">
+                <a href="#/service/${b.serviceId}">${escapeHtml(svc?.name ?? b.serviceId)}</a>
+                <span class="dashboard-list-sub">${escapeHtml(svc?.tenantName ?? '')}</span>
+              </div>
+              <div class="dashboard-list-meta">
+                <span>${formatDateTime(b.startsAt)}</span>
+                ${badge(b.status)}
+              </div>
+            </li>`;
+          })
+          .join('')}
+      </ul>`;
+
+  const jobRequestsContent =
+    openJobRequests.length === 0
+      ? '<p class="empty-state">No open job requests or quotations awaiting you.</p>'
+      : `<ul class="dashboard-list">
+        ${openJobRequests
+          .map((r) => {
+            const q = r.quotation;
+            return `<li>
+              <div class="dashboard-list-main">
+                <a href="#/service/${r.serviceId}">${escapeHtml(r.serviceName)}</a>
+                <span class="dashboard-list-sub">${escapeHtml(r.tenantName)}</span>
+              </div>
+              <div class="dashboard-list-meta">
+                ${q ? `<span>${formatMoney(q.amountMinorUnits, q.currencyCode)}</span>` : ''}
+                ${badge(r.status)}
+              </div>
+            </li>`;
+          })
+          .join('')}
+      </ul>`;
+
+  const messagesContent =
+    unreadConversations.length === 0
+      ? '<p class="empty-state">No unread messages.</p>'
+      : `<ul class="dashboard-list">
+        ${unreadConversations
+          .slice(0, 3)
+          .map(
+            (c) => `<li>
+              <div class="dashboard-list-main">
+                <a href="#/conversations/${c.id}">${escapeHtml(c.tenantName)}</a>
+                <span class="dashboard-list-sub">${escapeHtml(c.lastMessagePreview ?? '')}</span>
+              </div>
+              <div class="dashboard-list-meta">
+                <span class="badge status-pending">${c.unreadCount} new</span>
+              </div>
+            </li>`,
+          )
+          .join('')}
+      </ul>`;
+
+  const listingsContent =
+    (listings ?? []).length === 0
+      ? '<p class="empty-state">No listings yet — <a href="#/my-listings">post one</a> to advertise on the marketplace.</p>'
+      : `
+        ${
+          publishedListingCount > 0
+            ? `<p class="dashboard-summary-line">${publishedListingCount} published listing${publishedListingCount === 1 ? '' : 's'} live on the marketplace.</p>`
+            : ''
+        }
+        ${
+          listingsNeedingAttention.length === 0
+            ? (publishedListingCount > 0 ? '' : '<p class="empty-state">Nothing needs your attention right now.</p>')
+            : `<ul class="dashboard-list">
+          ${listingsNeedingAttention
+            .map(
+              (l) => `<li>
+                <div class="dashboard-list-main">
+                  <a href="#/my-listings">${escapeHtml(l.title)}</a>
+                  ${l.status === 'rejected' && l.rejectionReason ? `<span class="dashboard-list-sub">${escapeHtml(l.rejectionReason)}</span>` : ''}
+                </div>
+                <div class="dashboard-list-meta">${badge(l.status)}</div>
+              </li>`,
+            )
+            .join('')}
+        </ul>`
+        }`;
+
+  const body = `
+    <section class="dashboard-greeting">
+      <h1 class="page-title">Welcome back, ${escapeHtml(firstName)}</h1>
+      ${totalUnread > 0 ? `<p class="dashboard-greeting-sub">You have <a href="#/conversations">${totalUnread} unread message${totalUnread === 1 ? '' : 's'}</a>.</p>` : ''}
+    </section>
+    <div class="dashboard-grid">
+      ${section('Upcoming bookings', '#/bookings', bookingsResult.status === 'rejected', bookingsContent)}
+      ${section('Job requests & quotations', '#/job-requests', jobRequestsResult.status === 'rejected', jobRequestsContent)}
+      ${section('Messages', '#/conversations', conversationsResult.status === 'rejected', messagesContent)}
+      ${section('My listings', '#/my-listings', listingsResult.status === 'rejected', listingsContent)}
+    </div>
+  `;
+
+  return { title: 'Dashboard — Naa here', body };
+}
 
 // ---------------------------------------------------------------------
 // Browse: filterable list of every published service, across tenants.
