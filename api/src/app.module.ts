@@ -18,6 +18,7 @@ import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { DisputeModule } from './modules/dispute/dispute.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { CommunityModule } from './modules/community/community.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
@@ -52,6 +53,7 @@ import { HealthModule } from './modules/health/health.module';
     PaymentsModule,
     DisputeModule,
     FinanceModule,
+    ReportsModule,
     ModerationModule,
     CommunityModule,
     MessagingModule,
