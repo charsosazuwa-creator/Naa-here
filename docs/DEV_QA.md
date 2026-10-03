@@ -58,7 +58,8 @@ to iterate on. For actual coding:
    with that same password (see the comment in `.env.example` for why
    it must be this role, not the one that ran migrations).
 4. Seed some starting data (a verified demo business with two
-   bookable services, a provider account, a customer account):
+   bookable services, a provider account, a customer account, and a
+   platform administrator account):
    ```
    DATABASE_URL=postgres://postgres:postgres@localhost:5432/marketplace_dev \
    npm run db:seed
@@ -69,8 +70,9 @@ to iterate on. For actual coding:
    ```
    npm run start:dev
    ```
-6. Open `http://localhost:3000/provider/login.html` (or
-   `/customer/index.html`) and sign in with the seeded demo account.
+6. Open `http://localhost:3000/provider/login.html`
+   (`/customer/index.html`, or `/admin/login.html`) and sign in with
+   the matching seeded demo account.
 
 ---
 
@@ -183,3 +185,55 @@ Production secrets (`RESEND_API_KEY`, `GOOGLE_CLIENT_SECRET`,
 `PLATFORM_ADMIN_EMAILS`, etc.) live only in the Render dashboard's
 environment variables, never in this repo — see the comments in
 `render.yaml` for what each one does and where to get it.
+
+---
+
+## 6. Reports & the reporting Agent
+
+A "Platform summary" (cross-tenant, admin-only) and a "Business
+performance" report (any one tenant — an admin can generate it for
+any business, a provider only for their own) are available on demand
+from the Admin Console's Reports tab and the provider portal's Reports
+tab. See `db/migrations/026_admin_agent_reports.sql` and
+`api/src/modules/reports/` for the full design.
+
+Every report is generated and recorded under a service account — the
+"Agent" (`reporting-agent@naahere.internal`, `status = 'disabled'` so
+it can never actually sign in) — assigned the same `administrator`
+platform role a human admin would hold, via `platform_role_assignment`
+like any other platform staff member. A human admin or provider's
+click is what triggers a run; the resulting `report_run` row's
+`generated_by` is always the Agent, `requested_by` is always the human
+who clicked. There is no scheduler yet — on-demand only, by design for
+this first version; a cron-driven nightly run is a natural next step
+if it's wanted later.
+
+**Two real bugs found while building and verifying this feature** (not
+introduced by it — found because this was the first time anyone had
+actually loaded the Admin Console's rendered pages with a browser
+rather than just reading the code):
+
+1. `@RequirePermission(...)` placed at the **controller class** level,
+   rather than on each `@Get`/`@Post` handler, is invisible to both
+   `TenantRoleGuard` and `PlatformPermissionGuard` — they only read it
+   off `context.getHandler()`. A route like this silently 403s on
+   every single request, in every environment, forever: this was true
+   of `CrmController`, `TenantCustomerInvitationController`, and
+   `DisputeAdminController` (meaning the Admin Console's Disputes tab
+   has never actually been able to load its queue). All three are
+   fixed now — `@RequirePermission` applied per-handler, matching
+   every other controller. If you add a new controller, put
+   `@RequirePermission` on each method, not the class.
+2. The Admin Console's tab bar (`<nav class="admin-tabs">`) rendered
+   as a column of full-height pill buttons instead of a row — `.shell`
+   is a `display: flex` row built for the provider portal's sidebar
+   layout, and the admin page's extra in-flow child (the tabs nav,
+   where provider/customer no-tenant pages only ever had one) was
+   getting the same row/stretch treatment. Fixed in
+   `web/provider/app.css`'s `body.no-tenant .shell` rule.
+
+Both are a reminder: this app has no automated visual/rendering checks
+for the Admin Console (the Playwright smoke suite only covers customer
+and provider so far — see `e2e-smoke/tests/reports.spec.ts` for admin
+coverage added alongside this feature). A page that's never actually
+been looked at can be broken for a long time without anyone noticing.

@@ -2,8 +2,9 @@
 /**
  * Seeds a baseline set of dev/QA fixtures: one verified business with
  * two published, bookable services (weekly hours already configured),
- * a provider owner account, and a customer account — all with known
- * credentials, printed at the end.
+ * a provider owner account, a customer account, and a platform
+ * administrator account — all with known credentials, printed at the
+ * end.
  *
  * This exists because signing up through the app itself to get to a
  * useful starting point is slow (mock email/SMS verification code has
@@ -33,6 +34,8 @@ const PROVIDER_EMAIL = 'demo-provider@naahere.test';
 const PROVIDER_PHONE = '+2348000000001';
 const CUSTOMER_EMAIL = 'demo-customer@naahere.test';
 const CUSTOMER_PHONE = '+2348000000002';
+const ADMIN_EMAIL = 'demo-admin@naahere.test';
+const ADMIN_PHONE = '+2348000000003';
 
 function log(msg) {
   // eslint-disable-next-line no-console
@@ -115,6 +118,20 @@ async function main() {
       [CUSTOMER_EMAIL, CUSTOMER_PHONE, passwordHash],
     );
 
+    log('Creating platform administrator account...');
+    const { rows: adminRows } = await client.query(
+      `INSERT INTO app_user (email, phone, password_hash, full_name, status, email_verified_at, phone_verified_at)
+       VALUES ($1, $2, $3, 'Demo Admin', 'active', now(), now())
+       RETURNING id`,
+      [ADMIN_EMAIL, ADMIN_PHONE, passwordHash],
+    );
+    // role_id 6 = administrator (db/migrations/001, 005) — platform-wide,
+    // not a tenant membership, so no app.tenant_id needed for this one.
+    await client.query(
+      `INSERT INTO platform_role_assignment (user_id, role_id) VALUES ($1, 6)`,
+      [adminRows[0].id],
+    );
+
     log('Creating services with weekly availability (Mon–Fri 9am–5pm)...');
     const services = [
       { name: 'Haircut', durationMinutes: 45, priceMinorUnits: 500000 }, // NGN 5,000
@@ -146,6 +163,7 @@ async function main() {
     log('Seed complete. Sign in with:');
     log(`  Provider — email: ${PROVIDER_EMAIL}  phone: ${PROVIDER_PHONE}  password: ${DEMO_PASSWORD}`);
     log(`  Customer — email: ${CUSTOMER_EMAIL}  phone: ${CUSTOMER_PHONE}  password: ${DEMO_PASSWORD}`);
+    log(`  Admin    — email: ${ADMIN_EMAIL}  phone: ${ADMIN_PHONE}  password: ${DEMO_PASSWORD}`);
     log('Both accounts are already verified — no code to read from the log, sign in directly.');
   } finally {
     await client.end();
