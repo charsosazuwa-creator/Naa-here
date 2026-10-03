@@ -121,6 +121,29 @@ main.content {
 
 body.no-tenant main.content { margin-left: 0; max-width: 480px; margin-left: auto; margin-right: auto; }
 body.no-tenant .sidebar { display: none; }
+/* .shell is a row flex container built for the sidebar layout
+   (.sidebar + main.content side by side). A no-tenant page has no
+   sidebar, so this never mattered there -- main.content was .shell's
+   only in-flow child (.topbar is position:fixed, so it's not a flex
+   item at all), and a single flex item in a row container simply
+   fills the width, no different from a block layout. The Admin
+   Console (web/admin/index.html) is also a no-tenant page, but has a
+   SECOND in-flow child: <nav class="admin-tabs"> sits between
+   .topbar and main.content. With two flex items in a row container,
+   they sit side by side instead of stacked, and both stretch to the
+   taller one's full height (align-items: stretch, flex's default) --
+   the admin tab bar has been rendering as a column of full-height
+   pill buttons next to the page content since it was first built;
+   nobody had looked at the rendered page to notice. Found while
+   adding the Reports tab and verifying it with real screenshots.
+   Fixed generally, for every no-tenant page, not just admin's.
+   padding-top (rather than main.content's own margin-top: 56px,
+   which still applies here) clears the fixed .topbar for EVERY
+   in-flow child, not just the first one -- with just a block display
+   change, .admin-tabs (no top offset of its own) would start at y:0,
+   underneath the fixed header, and be unclickable there. */
+body.no-tenant .shell { display: block; padding-top: 56px; }
+body.no-tenant main.content { margin-top: 0; }
 
 /* Sidebar toggle: hidden on desktop (sidebar is always visible there,
  * pushing main.content over as it always has). Below 760px the
