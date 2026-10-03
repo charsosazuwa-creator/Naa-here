@@ -6,6 +6,7 @@ import { CurrentUserId } from '../../common/decorators/current-user.decorator';
 import { DecideListingDto, UpdateListingDto } from './dto/listing.dto';
 import { ListingService } from './listing.service';
 import { ListingImageService } from './listing-image.service';
+import { ModerationAssistService } from '../moderation-assist/moderation-assist.service';
 
 /**
  * The moderation queue for marketplace listings (AC14/AC24): every
@@ -29,6 +30,11 @@ import { ListingImageService } from './listing-image.service';
  * there) before deciding it — see ListingService.adminUpdate()'s own
  * comment for why this is narrower than the owner's own PATCH/DELETE
  * routes on ListingController/ListingImageController.
+ *
+ * listPending() also attaches the reporting Agent's advisory review
+ * to each listing (ModerationAssistService — see its own comment):
+ * read-only, a recommendation plus reasons for a human to read before
+ * deciding. The Agent never calls decide() itself.
  */
 @Controller('admin/listings')
 @UseGuards(JwtAuthGuard, PlatformPermissionGuard)
@@ -36,12 +42,17 @@ export class ListingAdminController {
   constructor(
     private readonly listings: ListingService,
     private readonly images: ListingImageService,
+    private readonly moderationAssist: ModerationAssistService,
   ) {}
 
   @Get('pending')
   @RequirePermission('listing.moderate')
-  listPending() {
-    return this.listings.listPendingReview();
+  async listPending() {
+    const listings = await this.listings.listPendingReview();
+    return listings.map((listing) => ({
+      ...listing,
+      agentReview: this.moderationAssist.reviewListing(listing),
+    }));
   }
 
   @Patch(':listingId')

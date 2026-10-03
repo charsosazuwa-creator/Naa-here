@@ -3,9 +3,10 @@ import { VerificationController } from './verification.controller';
 import { VerificationAdminController } from './verification-admin.controller';
 import { VerificationService } from './verification.service';
 import { FilesModule } from '../files/files.module';
+import { ModerationAssistModule } from '../moderation-assist/moderation-assist.module';
 
 @Module({
-  imports: [FilesModule],
+  imports: [FilesModule, ModerationAssistModule],
   controllers: [VerificationController, VerificationAdminController],
   providers: [VerificationService],
 })

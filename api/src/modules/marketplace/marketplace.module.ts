@@ -7,8 +7,10 @@ import { ListingService } from './listing.service';
 import { ListingImageService } from './listing-image.service';
 import { GooglePlacesService } from './google-places.service';
 import { AiSearchService } from './ai-search.service';
+import { ModerationAssistModule } from '../moderation-assist/moderation-assist.module';
 
 @Module({
+  imports: [ModerationAssistModule],
   controllers: [ListingController, ListingImageController, ListingAdminController, MarketplaceDiscoveryController],
   providers: [ListingService, ListingImageService, GooglePlacesService, AiSearchService],
 })

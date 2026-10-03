@@ -19,6 +19,14 @@ export interface VerificationSubmissionForReview extends VerificationSubmission 
   // Optional, provider-entered (migration 024) -- shown to reviewers
   // as context only, never validated against any registry.
   licenseNumber: string | null;
+  // The business's own profile fields (tenant.description/contact_*),
+  // included here so a reviewer can see them without opening the
+  // business separately, and so ModerationAssistService's advisory
+  // review (see VerificationAdminController) has something to reason
+  // about beyond just the submitted document.
+  businessDescription: string | null;
+  contactPhone: string | null;
+  contactEmail: string | null;
 }
 
 /**
@@ -159,7 +167,8 @@ export class VerificationService {
     return this.db.withUser(callerUserId, async (client) => {
       const { rows } = await client.query(
         `SELECT vs.id, vs.document_type, vs.attachment_id, vs.status, vs.decision_note,
-                vs.tenant_id, vs.created_at, t.name AS tenant_name, t.country_code, t.license_number
+                vs.tenant_id, vs.created_at, t.name AS tenant_name, t.country_code, t.license_number,
+                t.description AS business_description, t.contact_phone, t.contact_email
          FROM verification_submission vs
          JOIN tenant t ON t.id = vs.tenant_id
          WHERE $1::boolean OR vs.status = 'pending'
@@ -190,5 +199,8 @@ function toSubmissionForReview(row: Record<string, unknown>): VerificationSubmis
     countryCode: row.country_code as string,
     submittedAt: row.created_at as string, // Date, serialized to ISO by JSON.stringify — same pattern booking.service.ts's toBooking() uses
     licenseNumber: (row.license_number as string) ?? null,
+    businessDescription: (row.business_description as string) ?? null,
+    contactPhone: (row.contact_phone as string) ?? null,
+    contactEmail: (row.contact_email as string) ?? null,
   };
 }
