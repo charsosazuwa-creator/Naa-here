@@ -12,29 +12,39 @@ import { InviteCustomerDto } from './dto/customer-invitation.dto';
  * permission CrmController's customer routes require) rather than a
  * new permission code — inviting a customer is part of managing them,
  * and AC13/AC24 just need SOME permission gate, not a new one.
+ *
+ * @RequirePermission is applied per-handler below, not once at the
+ * class level: TenantRoleGuard reads this metadata off
+ * `context.getHandler()` only, so a class-level @RequirePermission is
+ * invisible to it and every route silently 403s (see crm.controller.ts
+ * for the full writeup of this bug, found and fixed the same way
+ * across every controller that had it).
  */
 @Controller('tenants/:tenantId/customer-invitations')
 @UseGuards(JwtAuthGuard, TenantRoleGuard)
-@RequirePermission('customer.manage')
 export class TenantCustomerInvitationController {
   constructor(private readonly invitations: CustomerInvitationService) {}
 
   @Post()
+  @RequirePermission('customer.manage')
   invite(@Param('tenantId') tenantId: string, @CurrentUserId() userId: string, @Body() dto: InviteCustomerDto) {
     return this.invitations.invite(tenantId, userId, dto.email);
   }
 
   @Get()
+  @RequirePermission('customer.manage')
   list(@Param('tenantId') tenantId: string) {
     return this.invitations.listForTenant(tenantId);
   }
 
   @Post(':invitationId/resend')
+  @RequirePermission('customer.manage')
   resend(@Param('tenantId') tenantId: string, @Param('invitationId') invitationId: string, @CurrentUserId() userId: string) {
     return this.invitations.resend(tenantId, invitationId, userId);
   }
 
   @Post(':invitationId/cancel')
+  @RequirePermission('customer.manage')
   cancel(@Param('tenantId') tenantId: string, @Param('invitationId') invitationId: string, @CurrentUserId() userId: string) {
     return this.invitations.cancel(tenantId, invitationId, userId);
   }

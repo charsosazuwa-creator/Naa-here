@@ -12,14 +12,26 @@ import { DisputeService } from './dispute.service';
  * scoped decide action" split as VerificationAdminController: each row
  * carries its own tenantId, and the admin UI calls the existing
  * POST /tenants/:tenantId/disputes/:disputeId/resolve with it.
+ *
+ * @RequirePermission sat at the class level here until this fix: found
+ * while building the reports feature, since ReportsAdminController
+ * started out with the same (copied) shape. PlatformPermissionGuard
+ * reads this metadata off `context.getHandler()` only, never
+ * `context.getClass()`, so a class-level @RequirePermission is
+ * invisible to it — the guard's own fail-closed branch for "no
+ * declared permission" then threw on every request. This route has
+ * been unconditionally 403ing in every environment, including
+ * production, since it was written: the Admin Console's Disputes tab
+ * has never actually been able to load its queue. See
+ * crm.controller.ts for the fuller writeup; fixed the same way here.
  */
 @Controller('admin/disputes')
 @UseGuards(JwtAuthGuard, PlatformPermissionGuard)
-@RequirePermission('dispute.view')
 export class DisputeAdminController {
   constructor(private readonly disputes: DisputeService) {}
 
   @Get()
+  @RequirePermission('dispute.view')
   listAll(@CurrentUserId() userId: string) {
     return this.disputes.listForAdmin(userId);
   }
