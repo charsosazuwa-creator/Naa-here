@@ -61,7 +61,7 @@ export class AuthService {
     private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
-  async register(dto: RegisterDto, ipAddress?: string): Promise<{ userId: string }> {
+  async register(dto: RegisterDto, ipAddress?: string): Promise<{ userId: string; requiresVerification: boolean }> {
     assertPasswordStrength(dto.password);
 
     const existing = await this.db.query<{ id: string }>(
@@ -76,11 +76,29 @@ export class AuthService {
 
     const passwordHash = await hashPassword(dto.password);
 
+    // Product decision: an email signup is no longer gated on proving
+    // ownership of the address (see docs/DEV_QA.md's "Email
+    // verification is disabled at signup" note) -- the account is
+    // created already 'active' and no email_verify code is issued.
+    // email_verified_at is deliberately left null rather than
+    // backfilled to now(): nobody has actually proven ownership, so
+    // this keeps that an honest signal for anything that reads it
+    // later (e.g. a future re-verification prompt), even though
+    // nothing currently gates on it.
+    //
+    // A phone-only signup is unaffected and still goes through the
+    // existing phone_verify code + pending_verification gate -- this
+    // change is scoped to email only. If dto.email is present at all,
+    // it takes this path regardless of whether a phone was also given
+    // (same precedence login() and the old code already used via
+    // `channel`/`purpose`).
+    const requiresVerification = !dto.email;
+
     const [user] = await this.db.query<{ id: string }>(
-      `INSERT INTO app_user (email, phone, password_hash, full_name)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO app_user (email, phone, password_hash, full_name, status)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING id`,
-      [dto.email ?? null, dto.phone ?? null, passwordHash, dto.fullName],
+      [dto.email ?? null, dto.phone ?? null, passwordHash, dto.fullName, requiresVerification ? 'pending_verification' : 'active'],
     );
 
     await this.audit.record({
@@ -91,11 +109,11 @@ export class AuthService {
       ipAddress,
     });
 
-    const channel: 'email' | 'sms' = dto.email ? 'email' : 'sms';
-    const purpose = dto.email ? 'email_verify' : 'phone_verify';
-    await this.verificationCodes.issue(user.id, purpose, channel);
+    if (requiresVerification) {
+      await this.verificationCodes.issue(user.id, 'phone_verify', 'sms');
+    }
 
-    return { userId: user.id };
+    return { userId: user.id, requiresVerification };
   }
 
   async verify(userId: string, purpose: 'email_verify' | 'phone_verify', code: string): Promise<void> {
