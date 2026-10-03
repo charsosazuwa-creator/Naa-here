@@ -497,3 +497,42 @@ button.small:disabled { opacity: 0.5; cursor: not-allowed; }
   border-top: 1px solid var(--color-border);
 }
 .report-list li:first-child { padding-top: 0; border-top: none; }
+
+/* The reporting Agent's advisory review on a pending listing/
+   verification submission (web/admin's two moderation queues --
+   ListingAdminController/VerificationAdminController attach
+   agentReview to each pending item). Deliberately its own color
+   scale, not .badge's status- one: this isn't a status, it's a
+   recommendation, and it never changes what the row's actual status
+   badge says. */
+.agent-review-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.agent-review-badge.ready { background: rgba(28,124,63,0.12); color: var(--color-success); }
+.agent-review-badge.attention { background: rgba(196,130,15,0.14); color: #9a6300; }
+@media (prefers-color-scheme: dark) {
+  .agent-review-badge.attention { color: #e0ab4c; }
+}
+.agent-review-detail {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+.agent-review-detail-label {
+  margin: 0 0 var(--space-2);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+}
+.agent-review-reasons { margin: 0; padding-left: 1.2em; font-size: 0.9rem; }
+.agent-review-reasons li { margin-bottom: 4px; }
+.agent-review-reasons li:last-child { margin-bottom: 0; }

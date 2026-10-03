@@ -237,3 +237,23 @@ for the Admin Console (the Playwright smoke suite only covers customer
 and provider so far — see `e2e-smoke/tests/reports.spec.ts` for admin
 coverage added alongside this feature). A page that's never actually
 been looked at can be broken for a long time without anyone noticing.
+
+### The Agent's moderation review (advisory only)
+
+The Agent also attaches an advisory recommendation to each item in the
+two provider-submission moderation queues (marketplace listings and
+business verification): a `looks_ready` / `needs_attention` flag plus
+specific reasons, shown as a badge and a reasons list next to each
+pending item in the Admin Console. See
+`api/src/modules/moderation-assist/moderation-assist.service.ts`.
+
+This is deliberately **read-only and rule-based** — a human still has
+to click Approve/Reject on every item; the Agent never calls
+`decide()` on anything itself. The rules are simple, explainable
+checks (missing description, no photos, an implausible-looking email
+or phone, a zero price where one's required, etc.), not a model call,
+so every recommendation is reproducible from the same input with no
+external dependency. If a richer, model-backed version is ever wanted,
+`marketplace/ai-search.service.ts`'s natural-language search is the
+existing pattern for that in this codebase (optional
+`ANTHROPIC_API_KEY`, graceful fallback when it's unset).

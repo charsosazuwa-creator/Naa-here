@@ -18,6 +18,28 @@
     return `<span class="badge status-${escapeHtml(status)}">${escapeHtml(status)}</span>`;
   }
 
+  // The reporting Agent's advisory review (ModerationAssistService,
+  // attached by ListingAdminController/VerificationAdminController to
+  // each pending item). Read-only and informational: it never changes
+  // a submission's status, it just gives the reviewer a head start.
+  function agentReviewBadge(review) {
+    if (!review) return '';
+    const cls = review.recommendation === 'looks_ready' ? 'ready' : 'attention';
+    const label = review.recommendation === 'looks_ready' ? 'Agent: looks ready' : `Agent: ${review.reasons.length} to check`;
+    return `<span class="agent-review-badge ${cls}">${escapeHtml(label)}</span>`;
+  }
+
+  function agentReviewDetail(review) {
+    if (!review || review.reasons.length === 0) return '';
+    return `
+      <div class="agent-review-detail">
+        <p class="agent-review-detail-label">Agent review</p>
+        <ul class="agent-review-reasons">
+          ${review.reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}
+        </ul>
+      </div>`;
+  }
+
   function renderAuthArea() {
     const user = currentUser();
     document.getElementById('user-name').textContent = user ? (user.fullName || user.email || '') : '';
@@ -73,12 +95,13 @@
         <td>${escapeHtml(s.documentType)}</td>
         <td>${formatDateTime(s.submittedAt)}</td>
         <td>${badge(s.status)}</td>
+        <td>${agentReviewBadge(s.agentReview)}</td>
         <td>
           <button class="btn-plain" data-action="review" data-id="${escapeHtml(s.id)}" data-tenant="${escapeHtml(s.tenantId)}">Review</button>
         </td>
       </tr>
       <tr class="submission-detail" data-detail-for="${escapeHtml(s.id)}" hidden>
-        <td colspan="6">
+        <td colspan="7">
           <p>Document type: <strong>${escapeHtml(s.documentType)}</strong> — attachment id
           <code>${escapeHtml(s.attachmentId)}</code>.</p>
           ${
@@ -86,6 +109,7 @@
               ? `<p>License / registration number: <strong>${escapeHtml(s.licenseNumber)}</strong> <span style="color:var(--color-text-muted);font-size:0.85rem">(self-reported, not verified against any registry)</span></p>`
               : ''
           }
+          ${agentReviewDetail(s.agentReview)}
           <div class="actions-row">
             <button class="btn-plain" data-action="view-document" data-id="${escapeHtml(s.id)}">View document</button>
           </div>
@@ -103,7 +127,7 @@
         <h2>Pending business verifications</h2>
         <table class="data-table">
           <thead>
-            <tr><th>Business</th><th>Country</th><th>Document</th><th>Submitted</th><th>Status</th><th></th></tr>
+            <tr><th>Business</th><th>Country</th><th>Document</th><th>Submitted</th><th>Status</th><th>Agent review</th><th></th></tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
@@ -210,13 +234,15 @@
         <td>${escapeHtml(l.ownerName)}</td>
         <td>${escapeHtml(priceLabel(l))}</td>
         <td>${formatDateTime(l.updatedAt)}</td>
+        <td>${agentReviewBadge(l.agentReview)}</td>
         <td>
           <button class="btn-plain" data-action="review" data-id="${escapeHtml(l.id)}">Review</button>
         </td>
       </tr>
       <tr class="submission-detail" data-detail-for="${escapeHtml(l.id)}" hidden>
-        <td colspan="6">
+        <td colspan="7">
           <p data-view-for="${escapeHtml(l.id)}">${escapeHtml(l.description ?? '')}</p>
+          ${agentReviewDetail(l.agentReview)}
           ${
             l.vehicleDetail
               ? `<p style="font-size:0.85rem;color:var(--color-text-muted)">Vehicle: ${escapeHtml([l.vehicleDetail.year, l.vehicleDetail.make, l.vehicleDetail.model].filter(Boolean).join(' ') || '—')}${l.vehicleDetail.mileageKm != null ? ` · ${l.vehicleDetail.mileageKm.toLocaleString()} km` : ''}${l.vehicleDetail.transmission ? ` · ${l.vehicleDetail.transmission}` : ''}${l.vehicleDetail.fuelType ? ` · ${l.vehicleDetail.fuelType}` : ''}${l.vehicleDetail.condition ? ` · ${l.vehicleDetail.condition}` : ''}</p>`
@@ -292,7 +318,7 @@
         <h2>Pending marketplace listings</h2>
         <table class="data-table">
           <thead>
-            <tr><th>Title</th><th>Type</th><th>Owner</th><th>Price</th><th>Submitted</th><th></th></tr>
+            <tr><th>Title</th><th>Type</th><th>Owner</th><th>Price</th><th>Submitted</th><th>Agent review</th><th></th></tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
