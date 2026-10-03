@@ -67,13 +67,24 @@
       // after verify + first sign-in. Stash it here; provider/login.js
       // picks it up and calls Api.createTenant() right after a
       // successful first sign-in, then clears both keys either way.
+      // This still applies even when verification is skipped below —
+      // the account exists but nothing has signed in yet, so the
+      // business still waits for that first sign-in.
       sessionStorage.setItem('pendingSignupType', 'provider');
       sessionStorage.setItem(
         'pendingBusiness',
         JSON.stringify({ name: businessName, businessType, categoryName: businessCategory, countryCode: businessCountry }),
       );
 
-      const purpose = email ? 'email_verify' : 'phone_verify';
+      if (!result.requiresVerification) {
+        // Email signups skip verification entirely (see
+        // auth.service.ts's register()) — the account is already
+        // active, so there's no code to enter. Go straight to sign-in.
+        window.location.href = '../provider/login.html';
+        return;
+      }
+
+      const purpose = 'phone_verify';
       const params = new URLSearchParams({ userId: result.userId, purpose });
       window.location.href = `verify.html?${params.toString()}`;
     } catch (err) {

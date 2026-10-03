@@ -63,7 +63,18 @@
       sessionStorage.setItem('pendingSignupType', 'customer');
       sessionStorage.removeItem('pendingBusiness');
 
-      const purpose = email ? 'email_verify' : 'phone_verify';
+      if (!result.requiresVerification) {
+        // Email signups skip verification entirely (see
+        // auth.service.ts's register()) — the account is already
+        // active, so there's no code to enter. Go straight to sign-in.
+        const destination = invitationToken
+          ? `../customer/login.html?next=${encodeURIComponent(`#/invite/${invitationToken}`)}`
+          : '../customer/login.html';
+        window.location.href = destination;
+        return;
+      }
+
+      const purpose = 'phone_verify';
       const params = new URLSearchParams({ userId: result.userId, purpose });
       if (invitationToken) {
         params.set('invite', invitationToken);

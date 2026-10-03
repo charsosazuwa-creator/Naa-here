@@ -257,3 +257,47 @@ external dependency. If a richer, model-backed version is ever wanted,
 `marketplace/ai-search.service.ts`'s natural-language search is the
 existing pattern for that in this codebase (optional
 `ANTHROPIC_API_KEY`, graceful fallback when it's unset).
+
+---
+
+## 7. Email verification is disabled at signup
+
+A deliberate product decision, not a bug: an **email** signup
+(`POST /v1/auth/register` with `email` set) is created already
+`active`, with no `email_verify` code issued at all — the new account
+can sign in immediately. See `auth.service.ts`'s `register()` for the
+full reasoning in code.
+
+Scope, precisely:
+
+- **Email signups only.** A **phone-only** signup is completely
+  unaffected — it still goes through the existing `phone_verify` code
+  and `pending_verification` gate, exactly as before.
+- If both an email and a phone are given at signup, the email path
+  wins (same precedence the code already used for choosing which
+  channel to verify) — the account goes active immediately either way.
+- `email_verified_at` is left `null` on these accounts rather than
+  backfilled to `now()` — nobody has actually proven ownership of the
+  address, so this stays an honest signal for anything that reads it
+  later, even though nothing currently gates on it.
+- OAuth (Google/Facebook) signups are unaffected — they already went
+  active immediately, since the provider itself vouches for the email.
+- Password reset is unaffected — it's a separate self-service flow
+  (`auth.service.ts`'s password-reset path) that already activates an
+  account and verifies its channel as a side effect of a successful
+  code entry, regardless of this change.
+
+`register()`'s response now carries `requiresVerification: boolean` so
+callers don't have to re-derive the business rule themselves —
+`web/auth/signup-customer.js` and `signup-provider.js` both branch on
+it: `false` skips `verify.html` entirely and goes straight to the
+relevant app's sign-in page; `true` (phone-only) goes to `verify.html`
+as before.
+
+**If this ever needs to be reverted** (e.g. spam/fraud becomes a
+problem), the change is contained to `AuthService.register()` — revert
+`requiresVerification`'s calculation back to always issuing a code and
+starting at `pending_verification`, and the two signup pages' redirect
+branches fall back to their original unconditional
+`verify.html?...` behavior automatically (the `if (!result
+.requiresVerification)` branch just never triggers).
