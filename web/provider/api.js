@@ -246,6 +246,14 @@ const Api = {
   listPayouts: (tenantId) => apiRequest(`/tenants/${tenantId}/payouts`),
   requestPayout: (tenantId, payload) => apiRequest(`/tenants/${tenantId}/payouts`, { method: 'POST', body: payload }),
 
+  // Reports (ReportsController) -- a business's own performance
+  // report, generated on demand by the reporting Agent service account
+  // (see db/migrations/026_admin_agent_reports.sql). report.view is
+  // granted to every provider role, same set as booking.manage.
+  listReports: (tenantId) => apiRequest(`/tenants/${tenantId}/reports`),
+  generateBusinessReport: (tenantId, periodDays) =>
+    apiRequest(`/tenants/${tenantId}/reports/business-performance`, { method: 'POST', body: { periodDays } }),
+
   // Community groups (User Story 5) -- user-level, not tenant-scoped
   // (see group.service.ts's header comment), but shown as a tab
   // within the tenant shell same as "My Listings".

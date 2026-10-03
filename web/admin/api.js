@@ -150,4 +150,19 @@ const Api = {
   createBusinessCategory(name) {
     return apiRequest('/business-categories', { method: 'POST', body: { name }, auth: true });
   },
+  // Reports (ReportsAdminController) — generated on demand by the
+  // reporting Agent service account; see
+  // db/migrations/026_admin_agent_reports.sql.
+  listReportTenants() {
+    return apiRequest('/admin/reports/tenants', { auth: true });
+  },
+  listReportHistory() {
+    return apiRequest('/admin/reports', { auth: true });
+  },
+  generatePlatformSummary(periodDays) {
+    return apiRequest('/admin/reports/platform-summary', { method: 'POST', body: { periodDays }, auth: true });
+  },
+  generateBusinessPerformance(tenantId, periodDays) {
+    return apiRequest(`/admin/reports/business-performance/${tenantId}`, { method: 'POST', body: { periodDays }, auth: true });
+  },
 };

@@ -444,3 +444,56 @@ button.small:disabled { opacity: 0.5; cursor: not-allowed; }
 .help-article-body ul, .help-article-body ol { margin: 0 0 var(--space-3); padding-left: 1.4em; }
 .help-related-heading { margin-top: var(--space-5); }
 .back-link { display: inline-block; margin-bottom: var(--space-3); color: var(--color-text-muted); }
+
+/* Reports (web/provider's Reports tab, web/admin's Reports tab —
+   both load this file). A small stat-tile row plus a 3-up card grid
+   for the breakdowns; intentionally its own class names rather than
+   reusing web/customer/app.css's .dashboard-* ones, since this file
+   is shared with the admin console, which never loads customer/app.css. */
+.report-stats {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+.report-stat {
+  flex: 1;
+  min-width: 140px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+}
+.report-stat-value { font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+.report-stat-label { font-size: 0.82rem; color: var(--color-text-muted); margin-top: 2px; }
+
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+.report-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  background: var(--color-surface);
+}
+.report-card-header { margin-bottom: var(--space-3); }
+.report-card-header h2 { margin: 0; font-size: 1.05rem; }
+.report-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.report-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+.report-list li:first-child { padding-top: 0; border-top: none; }

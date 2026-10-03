@@ -159,6 +159,14 @@
 
   const CURRENCY_SYMBOLS = { NGN: '₦', KES: 'KSh ', GHS: 'GH₵', ZAR: 'R', RWF: 'RWF ' };
 
+  function formatMoney(amountMinorUnits, currencyCode) {
+    if (amountMinorUnits === undefined || amountMinorUnits === null) return '—';
+    const amount = (Number(amountMinorUnits) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const code = currencyCode ?? '';
+    const symbol = CURRENCY_SYMBOLS[code];
+    return symbol ? `${symbol}${amount}` : `${amount} ${code}`.trim();
+  }
+
   function priceLabel(l) {
     if (l.priceType === 'contact') return 'Contact for price';
     if (l.priceType === 'negotiable') return 'Negotiable';
@@ -579,6 +587,234 @@
     });
   }
 
+  // -----------------------------------------------------------------
+  // Reports: cross-tenant platform summary (admin-only) and any
+  // tenant's business-performance report, both generated on demand by
+  // the reporting Agent service account (db/migrations/
+  // 026_admin_agent_reports.sql, api/src/modules/reports/). A
+  // provider sees the same business-performance report for their own
+  // tenant only, from the provider portal's own Reports tab
+  // (web/provider/app.js) — this is the admin-side view: any tenant,
+  // plus the cross-tenant summary nothing else can produce.
+  // -----------------------------------------------------------------
+
+  function renderPlatformSummaryResult(result) {
+    const statusEntries = Object.entries(result.bookingsByStatus ?? {});
+    const statusList = statusEntries.length
+      ? statusEntries.map(([status, count]) => `<li>${badge(status)} <strong>${count}</strong></li>`).join('')
+      : '<li class="empty-state">No bookings in this period.</li>';
+    const revenueList = (result.revenueByCurrency ?? []).length
+      ? result.revenueByCurrency.map((r) => `<li>${formatMoney(r.amountMinorUnits, r.currencyCode)}</li>`).join('')
+      : '<li class="empty-state">No completed charges in this period.</li>';
+    const tenantRows = (result.topTenantsByBookings ?? []).length
+      ? result.topTenantsByBookings.map((t) => `<tr><td>${escapeHtml(t.tenantName)}</td><td>${t.bookingCount}</td></tr>`).join('')
+      : '<tr class="empty-row"><td colspan="2">No bookings in this period.</td></tr>';
+
+    return `
+      <div class="report-stats">
+        <div class="report-stat"><div class="report-stat-value">${result.totalTenants}</div><div class="report-stat-label">Total businesses</div></div>
+        <div class="report-stat"><div class="report-stat-value">${result.newTenants}</div><div class="report-stat-label">New businesses (${result.periodDays}d)</div></div>
+        <div class="report-stat"><div class="report-stat-value">${result.newSignups}</div><div class="report-stat-label">New signups (${result.periodDays}d)</div></div>
+        <div class="report-stat"><div class="report-stat-value">${result.openDisputes}</div><div class="report-stat-label">Open disputes</div></div>
+      </div>
+      <div class="report-grid">
+        <div class="report-card">
+          <div class="report-card-header"><h2>Bookings by status</h2></div>
+          <ul class="report-list">${statusList}</ul>
+        </div>
+        <div class="report-card">
+          <div class="report-card-header"><h2>Revenue</h2></div>
+          <ul class="report-list">${revenueList}</ul>
+        </div>
+        <div class="report-card">
+          <div class="report-card-header"><h2>Top businesses by bookings</h2></div>
+          <table class="data-table">
+            <thead><tr><th>Business</th><th>Bookings</th></tr></thead>
+            <tbody>${tenantRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  function renderBusinessPerformanceResult(result) {
+    const statusEntries = Object.entries(result.bookingsByStatus ?? {});
+    const totalBookings = statusEntries.reduce((sum, [, count]) => sum + count, 0);
+    const statusList = statusEntries.length
+      ? statusEntries.map(([status, count]) => `<li>${badge(status)} <strong>${count}</strong></li>`).join('')
+      : '<li class="empty-state">No bookings in this period.</li>';
+    const revenueList = (result.revenueByCurrency ?? []).length
+      ? result.revenueByCurrency.map((r) => `<li>${formatMoney(r.amountMinorUnits, r.currencyCode)}</li>`).join('')
+      : '<li class="empty-state">No completed charges in this period.</li>';
+    const servicesRows = (result.topServices ?? []).length
+      ? result.topServices.map((s) => `<tr><td>${escapeHtml(s.name)}</td><td>${s.bookingCount}</td></tr>`).join('')
+      : '<tr class="empty-row"><td colspan="2">No bookings in this period.</td></tr>';
+
+    return `
+      <div class="report-stats">
+        <div class="report-stat"><div class="report-stat-value">${escapeHtml(result.tenantName)}</div><div class="report-stat-label">Business</div></div>
+        <div class="report-stat"><div class="report-stat-value">${totalBookings}</div><div class="report-stat-label">Bookings (${result.periodDays}d)</div></div>
+        <div class="report-stat"><div class="report-stat-value">${result.openDisputes}</div><div class="report-stat-label">Open disputes</div></div>
+      </div>
+      <div class="report-grid">
+        <div class="report-card">
+          <div class="report-card-header"><h2>Bookings by status</h2></div>
+          <ul class="report-list">${statusList}</ul>
+        </div>
+        <div class="report-card">
+          <div class="report-card-header"><h2>Revenue</h2></div>
+          <ul class="report-list">${revenueList}</ul>
+        </div>
+        <div class="report-card">
+          <div class="report-card-header"><h2>Top services</h2></div>
+          <table class="data-table">
+            <thead><tr><th>Service</th><th>Bookings</th></tr></thead>
+            <tbody>${servicesRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  async function renderReports() {
+    view.innerHTML = `<p class="empty-state">Loading…</p>`;
+    let tenants, history;
+    try {
+      [tenants, history] = await Promise.all([Api.listReportTenants(), Api.listReportHistory()]);
+    } catch (err) {
+      renderError(err);
+      return;
+    }
+
+    const tenantOptions = tenants.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+    const historyRows = history.length
+      ? history
+          .map(
+            (r, i) => `
+        <tr>
+          <td>${formatDateTime(r.createdAt)}</td>
+          <td>${r.reportType === 'platform_summary' ? 'Platform summary' : 'Business performance'}</td>
+          <td>${r.tenantName ? escapeHtml(r.tenantName) : '—'}</td>
+          <td>${r.periodDays} days</td>
+          <td><button type="button" class="btn-plain report-view-btn" data-index="${i}">View</button></td>
+        </tr>`,
+          )
+          .join('')
+      : '<tr class="empty-row"><td colspan="5">No reports generated yet.</td></tr>';
+
+    view.innerHTML = `
+      <div class="panel">
+        <h2>Platform summary</h2>
+        <p style="color:var(--color-text-muted);font-size:0.85rem">
+          Cross-tenant: bookings, revenue and disputes across every business on the platform.
+        </p>
+        <div style="display:flex;gap:var(--space-3);align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="margin-bottom:0">
+            <label for="platform-period">Period</label>
+            <select id="platform-period" class="tenant-select">
+              <option value="7">Last 7 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+          </div>
+          <button id="generate-platform-btn" class="primary" type="button">Generate</button>
+        </div>
+        <div id="platform-alert" class="alert error" role="alert" hidden></div>
+        <div id="platform-result" style="margin-top:var(--space-4)"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Business performance</h2>
+        <p style="color:var(--color-text-muted);font-size:0.85rem">Any business's own bookings, revenue and top services.</p>
+        <div style="display:flex;gap:var(--space-3);align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="margin-bottom:0">
+            <label for="business-tenant">Business</label>
+            <select id="business-tenant" class="tenant-select">${tenantOptions}</select>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label for="business-period">Period</label>
+            <select id="business-period" class="tenant-select">
+              <option value="7">Last 7 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+          </div>
+          <button id="generate-business-btn" class="primary" type="button">Generate</button>
+        </div>
+        <div id="business-alert" class="alert error" role="alert" hidden></div>
+        <div id="business-result" style="margin-top:var(--space-4)"></div>
+      </div>
+
+      <div class="panel">
+        <h2>History</h2>
+        <table class="data-table">
+          <thead><tr><th>Generated</th><th>Type</th><th>Business</th><th>Period</th><th></th></tr></thead>
+          <tbody>${historyRows}</tbody>
+        </table>
+      </div>`;
+
+    const platformResult = document.getElementById('platform-result');
+    const platformAlert = document.getElementById('platform-alert');
+    document.getElementById('generate-platform-btn').addEventListener('click', async (event) => {
+      const btn = event.currentTarget;
+      platformAlert.hidden = true;
+      btn.disabled = true;
+      btn.textContent = 'Generating…';
+      try {
+        const periodDays = Number(document.getElementById('platform-period').value);
+        const report = await Api.generatePlatformSummary(periodDays);
+        platformResult.innerHTML = renderPlatformSummaryResult(report.result);
+        history.unshift({ ...report, tenantName: null });
+      } catch (err) {
+        platformAlert.textContent = err.status === 403
+          ? "This account doesn't hold a platform role that carries the report.view permission."
+          : err.message;
+        platformAlert.hidden = false;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Generate';
+      }
+    });
+
+    const businessResult = document.getElementById('business-result');
+    const businessAlert = document.getElementById('business-alert');
+    document.getElementById('generate-business-btn').addEventListener('click', async (event) => {
+      const btn = event.currentTarget;
+      businessAlert.hidden = true;
+      if (!tenants.length) {
+        businessAlert.textContent = 'No businesses exist yet.';
+        businessAlert.hidden = false;
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Generating…';
+      try {
+        const tenantId = document.getElementById('business-tenant').value;
+        const periodDays = Number(document.getElementById('business-period').value);
+        const report = await Api.generateBusinessPerformance(tenantId, periodDays);
+        businessResult.innerHTML = renderBusinessPerformanceResult(report.result);
+      } catch (err) {
+        businessAlert.textContent = err.message;
+        businessAlert.hidden = false;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Generate';
+      }
+    });
+
+    document.querySelectorAll('.report-view-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const row = history[Number(btn.dataset.index)];
+        if (!row) return;
+        if (row.reportType === 'platform_summary') {
+          platformResult.innerHTML = renderPlatformSummaryResult(row.result);
+          platformResult.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          businessResult.innerHTML = renderBusinessPerformanceResult(row.result);
+          businessResult.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    });
+  }
+
   function switchTab(tab) {
     document.querySelectorAll('.admin-tabs button').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
     if (tab === 'listings') {
@@ -587,6 +823,8 @@
       renderDisputesQueue();
     } else if (tab === 'categories') {
       renderCategories();
+    } else if (tab === 'reports') {
+      renderReports();
     } else {
       renderPending();
     }
