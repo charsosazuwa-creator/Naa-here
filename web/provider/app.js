@@ -39,9 +39,9 @@ const NAV_ITEMS = [
   // signed-in user directly (see db/migrations/012_marketplace_listings.sql)
   // — but this lives in the sidebar since a Service Provider managing
   // their business is exactly who'd want to post a product/service too.
-  { key: 'market', label: '1. Public Store', group: 'market-place', groupLabel: 'Market Place' },
-  { key: 'post-product', label: '2. Post Product(s)', group: 'market-place' },
-  { key: 'post-service', label: '3. Post Service(s)', group: 'market-place' },
+  { key: 'market', label: 'Public Store', group: 'market-place', groupLabel: 'Market Place' },
+  { key: 'post-product', label: 'Post Product(s)', group: 'market-place' },
+  { key: 'post-service', label: 'Post Service(s)', group: 'market-place' },
   { key: 'listings', label: 'My Listings' },
   { key: 'groups', label: 'Groups' },
   { key: 'disputes', label: 'Disputes' },

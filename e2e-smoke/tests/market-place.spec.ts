@@ -41,7 +41,7 @@ test('Post Product(s) creates a listing that shows up, owner-mapped, in the Publ
     await page.locator('#view').getByText('Demo Salon').click();
     await page.waitForURL(/\/t\/[^/]+\/overview$/, { timeout: 10_000 });
 
-    await page.locator('#sidebar-nav a', { hasText: '2. Post Product(s)' }).click();
+    await page.locator('#sidebar-nav a', { hasText: 'Post Product(s)' }).click();
     await expect(page.getByRole('heading', { name: 'Post a product' })).toBeVisible({ timeout: 10_000 });
 
     // The type dropdown is locked to "product" (disabled, single
