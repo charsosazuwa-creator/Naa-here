@@ -79,19 +79,33 @@
 
   // -- Owner-side: create/edit form, "My Listings" -----------------------
 
-  function listingFormHtml(existing) {
+  function listingFormHtml(existing, options = {}) {
     const l = existing || {};
+    // Post Product(s)/Post Services (the Public Store's quick-create
+    // entry points) land here with a fixed type: the dropdown becomes
+    // a single disabled option instead of the full type picker, so
+    // there's nothing to pick wrong. `disabled` still leaves `.value`
+    // readable from JS (wireListingForm reads it directly, never via
+    // native form submission), so the rest of this form doesn't need
+    // to know the type was locked.
+    const lockedType = options.lockedType;
+    const effectiveType = lockedType || l.listingType;
+    const typeOptionsHtml = lockedType
+      ? `<option value="${lockedType}" selected>${LISTING_TYPE_LABELS[lockedType] ?? lockedType}</option>`
+      : `
+          <option value="product" ${l.listingType === 'product' ? 'selected' : ''}>Product</option>
+          <option value="service" ${l.listingType === 'service' ? 'selected' : ''}>Service</option>
+          <option value="invention" ${l.listingType === 'invention' ? 'selected' : ''}>Invention</option>
+          <option value="vehicle" ${l.listingType === 'vehicle' ? 'selected' : ''}>Vehicle</option>
+          <option value="real_estate" ${l.listingType === 'real_estate' ? 'selected' : ''}>Real Estate</option>
+        `;
     return `
       <div class="listing-form-alert alert error" role="alert" hidden></div>
       <form class="listing-form" novalidate data-listing-id="${l.id ?? ''}">
         <div class="field">
           <label>Listing type</label>
-          <select class="lf-type tenant-select">
-            <option value="product" ${l.listingType === 'product' ? 'selected' : ''}>Product</option>
-            <option value="service" ${l.listingType === 'service' ? 'selected' : ''}>Service</option>
-            <option value="invention" ${l.listingType === 'invention' ? 'selected' : ''}>Invention</option>
-            <option value="vehicle" ${l.listingType === 'vehicle' ? 'selected' : ''}>Vehicle</option>
-            <option value="real_estate" ${l.listingType === 'real_estate' ? 'selected' : ''}>Real Estate</option>
+          <select class="lf-type tenant-select" ${lockedType ? 'disabled' : ''}>
+            ${typeOptionsHtml}
           </select>
         </div>
         <div class="field"><label>Title</label><input class="lf-title" required value="${escapeHtml(l.title ?? '')}" /></div>
@@ -101,7 +115,7 @@
           <datalist class="lf-category-list"></datalist>
         </div>
         <div class="field"><label>Description</label><textarea class="lf-description" rows="3">${escapeHtml(l.description ?? '')}</textarea></div>
-        <div class="lf-vehicle-fields" ${l.listingType === 'vehicle' ? '' : 'hidden'}>
+        <div class="lf-vehicle-fields" ${effectiveType === 'vehicle' ? '' : 'hidden'}>
           <h3 style="font-size:0.9rem;margin:var(--space-3) 0 0">Vehicle details (optional)</h3>
           <div class="field inline-form">
             <div><label>Make</label><input class="lf-v-make" value="${escapeHtml(l.vehicleDetail?.make ?? '')}" placeholder="e.g. Toyota" /></div>
@@ -138,7 +152,7 @@
             </select>
           </div>
         </div>
-        <div class="lf-property-fields" ${l.listingType === 'real_estate' ? '' : 'hidden'}>
+        <div class="lf-property-fields" ${effectiveType === 'real_estate' ? '' : 'hidden'}>
           <h3 style="font-size:0.9rem;margin:var(--space-3) 0 0">Property details (optional)</h3>
           <div class="field inline-form">
             <div><label>Property type</label>
@@ -572,12 +586,55 @@
     return { title: 'My Listings', body, after };
   }
 
+  // -- Market Place menu: "Post Product(s)" / "Post Services" ------------
+  //
+  // A focused, single-purpose alternative to the create panel buried at
+  // the bottom of My Listings: the Market Place dropdown's "Post
+  // Product(s)" and "Post Services" items land here with the listing
+  // type already fixed, so there's one thing to do — fill in the item
+  // and post it. The listing itself is created exactly the way My
+  // Listings creates one (same form, same draft → submit-for-review →
+  // published lifecycle, same ownership) and shows up there afterwards,
+  // which is where this redirects on success.
+  const POST_LISTING_COPY = {
+    product: {
+      heading: 'Post a product',
+      blurb: 'List something for sale. It starts as a draft, then Submit for review from My Listings sends it to a platform admin — once approved, anyone can find it in the Public Store.',
+    },
+    service: {
+      heading: 'Post a service',
+      blurb: 'List a service you offer. It starts as a draft, then Submit for review from My Listings sends it to a platform admin — once approved, anyone can find it in the Public Store.',
+    },
+  };
+
+  async function renderPostListing(Api, listingType, afterCreateHash) {
+    const copy = POST_LISTING_COPY[listingType] ?? POST_LISTING_COPY.product;
+    const body = `
+      <h1 class="page-title">${escapeHtml(copy.heading)}</h1>
+      <p style="color:var(--color-text-muted);font-size:0.85rem">${escapeHtml(copy.blurb)}</p>
+      <div class="panel listing-create-panel">
+        ${listingFormHtml(null, { lockedType: listingType })}
+      </div>
+    `;
+
+    const after = () => {
+      const createPanel = document.querySelector('.listing-create-panel');
+      wireListingForm(createPanel, Api, () => {
+        window.location.hash = `#/${afterCreateHash}`;
+      });
+    };
+
+    return { title: copy.heading, body, after };
+  }
+
   // -- Public: Marketplace browse + detail (customer app only) -----------
 
   function listingCardHtml(l, hashBase) {
     const distance = l.distanceKm !== undefined ? `<div class="meta">${l.distanceKm} km away</div>` : '';
     const vehicleLine = l.vehicleDetail ? `<div class="meta">${escapeHtml(vehicleSummaryLine(l.vehicleDetail))}</div>` : '';
     const propertyLine = l.propertyDetail ? `<div class="meta">${escapeHtml(propertySummaryLine(l.propertyDetail))}</div>` : '';
+    // Every Public Store card is mapped back to whoever posted it.
+    const ownerLine = l.ownerName ? `<div class="meta">Posted by ${escapeHtml(l.ownerName)}</div>` : '';
     return `
       <a class="service-card" href="#/${hashBase}/${l.id}">
         ${l.images[0] ? `<img src="${escapeHtml(l.images[0].url)}" alt="" style="width:100%;border-radius:8px;margin-bottom:var(--space-2);aspect-ratio:4/3;object-fit:cover" />` : ''}
@@ -587,6 +644,7 @@
         <div class="price">${priceLabel(l)}</div>
         <div class="meta">${escapeHtml(l.locationText || COUNTRY_LABELS[l.countryCode] || '')}</div>
         ${distance}
+        ${ownerLine}
       </a>`;
   }
 
@@ -778,7 +836,11 @@
 
     const body = `
       ${aiSearchBoxHtml()}
-      <h1 class="page-title">Marketplace</h1>
+      <h1 class="page-title">Public Store</h1>
+      <p style="color:var(--color-text-muted);font-size:0.85rem">
+        Every product and service posted anywhere on Naa here — by any Provider or Customer — shows up
+        here once a platform admin approves it, each one labeled with who posted it.
+      </p>
       <form class="marketplace-filters filters-bar" novalidate>
         <div class="field">
           <label>Search</label>
@@ -922,7 +984,7 @@
       });
     };
 
-    return { title: 'Marketplace', body, after };
+    return { title: 'Public Store', body, after };
   }
 
   async function renderMarketDetail(Api, listingId, backHash) {
@@ -935,8 +997,31 @@
 
     const contactLabel = { phone: 'Phone', whatsapp: 'WhatsApp', email: 'Email' }[listing.contactMethod] || 'Contact';
 
+    // A clickable way to "reach out to Provider for follow-ups" rather
+    // than just printed text — opens the device's phone/WhatsApp/email
+    // app directly, pre-addressed to this listing's own contact value
+    // (never a platform inbox, since there isn't one for listings).
+    const whatsappDigits = (listing.contactValue || '').replace(/[^0-9]/g, '');
+    const contactHref =
+      listing.contactMethod === 'phone'
+        ? `tel:${listing.contactValue}`
+        : listing.contactMethod === 'whatsapp'
+          ? `https://wa.me/${whatsappDigits}`
+          : listing.contactMethod === 'email'
+            ? `mailto:${listing.contactValue}`
+            : null;
+    const posterName = listing.ownerName ? escapeHtml(listing.ownerName) : 'the poster';
+    const contactActionLabel =
+      listing.contactMethod === 'phone'
+        ? `Call ${posterName}`
+        : listing.contactMethod === 'whatsapp'
+          ? `Message ${posterName} on WhatsApp`
+          : listing.contactMethod === 'email'
+            ? `Email ${posterName}`
+            : `Contact ${posterName}`;
+
     const body = `
-      <a class="back-link" href="#/${backHash}">&larr; Back to marketplace</a>
+      <a class="back-link" href="#/${backHash}">&larr; Back to Public Store</a>
       <h1 class="page-title">${escapeHtml(listing.title)}</h1>
       <div class="panel">
         ${
@@ -947,6 +1032,7 @@
             : ''
         }
         <div class="tenant" style="margin:var(--space-2) 0">${LISTING_TYPE_LABELS[listing.listingType] ?? ''} · ${escapeHtml(listing.category)}</div>
+        ${listing.ownerName ? `<p style="color:var(--color-text-muted);font-size:0.85rem">Posted by ${escapeHtml(listing.ownerName)}</p>` : ''}
         ${listing.vehicleDetail ? `<p style="color:var(--color-text-muted)">${escapeHtml(vehicleSummaryLine(listing.vehicleDetail))}</p>` : ''}
         ${listing.propertyDetail ? `<p style="color:var(--color-text-muted)">${escapeHtml(propertySummaryLine(listing.propertyDetail))}</p>` : ''}
         <p>${escapeHtml(listing.description ?? '')}</p>
@@ -956,11 +1042,12 @@
       <div class="panel">
         <h2>Contact</h2>
         <p><strong>${contactLabel}:</strong> ${escapeHtml(listing.contactValue)}</p>
+        ${contactHref ? `<a class="small primary" style="display:inline-block;margin-top:var(--space-2)" href="${escapeHtml(contactHref)}" target="_blank" rel="noopener">${escapeHtml(contactActionLabel)}</a>` : ''}
       </div>
     `;
 
     return { title: listing.title, body };
   }
 
-  window.ListingUI = { renderMyListings, renderMarketBrowse, renderMarketDetail };
+  window.ListingUI = { renderMyListings, renderPostListing, renderMarketBrowse, renderMarketDetail };
 })();

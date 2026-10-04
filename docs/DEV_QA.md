@@ -301,3 +301,49 @@ starting at `pending_verification`, and the two signup pages' redirect
 branches fall back to their original unconditional
 `verify.html?...` behavior automatically (the `if (!result
 .requiresVerification)` branch just never triggers).
+
+## 8. Market Place: the Public Store
+
+A **Market Place** menu, in both the Provider and Customer portal
+sidebars/nav, with three items:
+
+1. **Public Store** — the public browse/search page (the existing
+   `/discover/listings` marketplace, just relabeled and given a short
+   intro line). Every product/service posted anywhere on the platform
+   by anyone — Provider or Customer — shows up here once a platform
+   admin approves it (the existing draft → submit → pending_review →
+   published lifecycle from User Story 2 is untouched).
+2. **Post Product(s)** — a focused create-only page: the same listing
+   form My Listings already has, with the type dropdown locked to
+   `product` instead of the full picker.
+3. **Post Service(s)** — same thing, locked to `service`.
+
+Posting from either of the two create pages lands the new listing on
+**My Listings** as a `draft`, exactly as if it had been created there
+directly — "Post Product(s)"/"Post Services" don't auto-submit it for
+review. See `web/shared/listing-ui.js`'s `renderPostListing()` for the
+shared implementation (`listingFormHtml()` and `wireListingForm()`
+both learned an optional `lockedType`), and `views.market` /
+`views['post-product']` / `views['post-service']` in each app's
+`app.js` for how it's wired into that app's routes/nav.
+
+**Every listing is mapped to whoever posted it.** `owner_user_id` on
+`listing` already recorded this (migration 012); what changed here is
+that the *public-facing* reads — `ListingService.search()` and
+`getPublished()` — now join `app_user` to also return `ownerName`
+(matching the pattern `listPendingReview()` already used for the
+admin queue). The Public Store shows "Posted by `<name>`" on every
+card and on the detail page.
+
+**Reaching out to the poster.** The listing detail page already
+showed the poster's raw contact value (phone/WhatsApp/email); it now
+also renders that as a clickable action — `tel:`, `https://wa.me/<digits>`,
+or `mailto:` — labeled e.g. "Message Demo Provider on WhatsApp", so a
+Customer or Provider can actually follow up with one tap rather than
+copying a phone number by hand.
+
+Covered by `e2e-smoke/tests/market-place.spec.ts`: signs in as the
+seeded Provider, uses the sidebar's "Post Product(s)" item (confirming
+the type dropdown really is locked), submits it for review, approves
+it as admin via the API, then checks the Public Store shows it with
+the right "Posted by" name and a working WhatsApp contact link.

@@ -117,6 +117,13 @@ export interface ListingDetail {
   // tables rather than extra columns on `listing` itself.
   vehicleDetail?: VehicleDetail;
   propertyDetail?: PropertyDetail;
+  // Who posted this — only populated on the public-facing reads
+  // (search(), getPublished()) and admin review (listPendingReview()),
+  // where "mapped to whoever created it" (the Public Store feature)
+  // needs a display name. Absent from the owner's own reads (they
+  // already know it's theirs) and from create/update/etc, which don't
+  // re-join app_user.
+  ownerName?: string;
 }
 
 const EDITABLE_STATUSES = ['draft', 'pending_review', 'published', 'paused', 'rejected'];
@@ -394,7 +401,7 @@ export class ListingService {
    * search.
    */
   async search(query: DiscoverListingsQueryDto): Promise<ListingDetail[]> {
-    const conditions: string[] = [`status = 'published'`];
+    const conditions: string[] = [`listing.status = 'published'`];
     const params: unknown[] = [];
 
     if (query.listingType) {
@@ -493,10 +500,15 @@ export class ListingService {
       orderBy = 'sub.updated_at DESC';
     }
 
-    const rows = await this.db.query<ListingRow & { distance_km: number | null }>(
+    // Public Store (this is the only reader of search() outside the
+    // owner themselves) needs to show who posted each listing, so this
+    // joins app_user the same way listPendingReview() already does for
+    // the admin queue.
+    const rows = await this.db.query<ListingRow & { distance_km: number | null; owner_name: string }>(
       `SELECT * FROM (
-         SELECT listing.*, ${distanceSelect}
+         SELECT listing.*, u.full_name AS owner_name, ${distanceSelect}
          FROM listing
+         JOIN app_user u ON u.id = listing.owner_user_id
          WHERE ${conditions.join(' AND ')}
        ) sub
        WHERE true${radiusFilter}
@@ -520,12 +532,19 @@ export class ListingService {
         row.distance_km ?? undefined,
         vehicleDetails.find((v) => v.listing_id === row.id),
         propertyDetails.find((p) => p.listing_id === row.id),
+        row.owner_name,
       ),
     );
   }
 
   async getPublished(listingId: string): Promise<ListingDetail> {
-    const [row] = await this.db.query<ListingRow>(`SELECT * FROM listing WHERE id = $1 AND status = 'published'`, [listingId]);
+    const [row] = await this.db.query<ListingRow & { owner_name: string }>(
+      `SELECT listing.*, u.full_name AS owner_name
+       FROM listing
+       JOIN app_user u ON u.id = listing.owner_user_id
+       WHERE listing.id = $1 AND listing.status = 'published'`,
+      [listingId],
+    );
     if (!row) {
       throw new NotFoundException('Listing not found.');
     }
@@ -535,6 +554,7 @@ export class ListingService {
       undefined,
       await this.vehicleDetailFor(listingId),
       await this.propertyDetailFor(listingId),
+      row.owner_name,
     );
   }
 
@@ -745,9 +765,11 @@ export class ListingService {
     distanceKm?: number,
     vehicleDetail?: VehicleDetailRow,
     propertyDetail?: PropertyDetailRow,
+    ownerName?: string,
   ): ListingDetail {
     return {
       id: row.id,
+      ownerName,
       ownerUserId: row.owner_user_id,
       listingType: row.listing_type,
       title: row.title,

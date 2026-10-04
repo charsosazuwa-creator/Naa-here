@@ -924,6 +924,27 @@ views['my-listings'] = async () => {
   return ListingUI.renderMyListings(Api, runAction);
 };
 
+// Market Place menu: "Post Product(s)" / "Post Services" — a focused
+// create-only page with the listing type already fixed (see
+// web/shared/listing-ui.js's renderPostListing). Posting requires an
+// account, same gate as My Listings above, since every listing is
+// mapped to the signed-in user who created it.
+views['post-product'] = async () => {
+  if (!isSignedIn()) {
+    window.location.href = `login.html?next=${encodeURIComponent('#/post-product')}`;
+    return { title: 'Post a product', body: '' };
+  }
+  return ListingUI.renderPostListing(Api, 'product', 'my-listings');
+};
+
+views['post-service'] = async () => {
+  if (!isSignedIn()) {
+    window.location.href = `login.html?next=${encodeURIComponent('#/post-service')}`;
+    return { title: 'Post a service', body: '' };
+  }
+  return ListingUI.renderPostListing(Api, 'service', 'my-listings');
+};
+
 // ---------------------------------------------------------------------
 // Job requests ("mine"): the artisan flow's customer-facing half —
 // see job.service.ts's listMine/accept. Status moves

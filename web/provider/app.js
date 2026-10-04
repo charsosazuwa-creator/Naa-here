@@ -32,11 +32,16 @@ const NAV_ITEMS = [
   { key: 'messages', label: 'Messages' },
   { key: 'bookings', label: 'Bookings' },
   { key: 'job-requests', label: 'Job requests' },
-  // Marketplace listings (User Story 2) aren't tenant-scoped — they're
-  // owned by the signed-in user directly (see
-  // db/migrations/012_marketplace_listings.sql) — but the tab lives
-  // here since a Service Provider managing their business is exactly
-  // who'd want to post a product/service/invention too.
+  // Market Place: browse everything posted platform-wide (Public
+  // Store) and the two quick-create entry points, grouped under one
+  // label by renderSidebar() below (matched on `group`). Listings
+  // (User Story 2) aren't tenant-scoped — they're owned by the
+  // signed-in user directly (see db/migrations/012_marketplace_listings.sql)
+  // — but this lives in the sidebar since a Service Provider managing
+  // their business is exactly who'd want to post a product/service too.
+  { key: 'market', label: '1. Public Store', group: 'market-place', groupLabel: 'Market Place' },
+  { key: 'post-product', label: '2. Post Product(s)', group: 'market-place' },
+  { key: 'post-service', label: '3. Post Service(s)', group: 'market-place' },
   { key: 'listings', label: 'My Listings' },
   { key: 'groups', label: 'Groups' },
   { key: 'disputes', label: 'Disputes' },
@@ -1589,6 +1594,48 @@ views.messages = async () => {
 // ---------------------------------------------------------------------
 views.listings = async () => ListingUI.renderMyListings(Api, runAction);
 
+// Market Place: Public Store (everyone's published products/services,
+// same public browse page the customer portal's Marketplace link
+// uses) plus the two quick-create entry points. A tenant is already
+// selected to reach any provider view, but a listing itself is owned
+// by the signed-in user, not this tenant — posting from here still
+// attaches it to the Provider's own account (see listing.service.ts).
+views.market = async () => {
+  const { tenantId, section } = parseRoute();
+  const routeParams = section.split('/').slice(1);
+  // "market" with no sub-path is the browse grid; "market/<id>" is a
+  // single listing's detail page — same split the customer app's
+  // market/market-item routes use, just folded into one view here
+  // since the provider sidebar only has one Public Store entry.
+  if (routeParams[0]) {
+    return ListingUI.renderMarketDetail(Api, routeParams[0], `t/${tenantId}/market`);
+  }
+  const query = new URLSearchParams(window.location.hash.split('?')[1] || '');
+  const filters = {
+    listingType: query.get('type') || '',
+    countryCode: query.get('country') || '',
+    location: query.get('location') || '',
+    search: query.get('q') || '',
+    sort: query.get('sort') || '',
+    minPrice: query.get('minPrice') || '',
+    maxPrice: query.get('maxPrice') || '',
+    lat: query.get('lat') || '',
+    lng: query.get('lng') || '',
+    radiusKm: query.get('radius') || '',
+  };
+  return ListingUI.renderMarketBrowse(Api, filters, `t/${tenantId}/market`);
+};
+
+views['post-product'] = async () => {
+  const { tenantId } = parseRoute();
+  return ListingUI.renderPostListing(Api, 'product', `t/${tenantId}/listings`);
+};
+
+views['post-service'] = async () => {
+  const { tenantId } = parseRoute();
+  return ListingUI.renderPostListing(Api, 'service', `t/${tenantId}/listings`);
+};
+
 // ---------------------------------------------------------------------
 // Payouts
 // ---------------------------------------------------------------------
@@ -2629,9 +2676,14 @@ function renderSidebar() {
 
   document.body.classList.remove('no-tenant');
   sidebar.hidden = false;
-  nav.innerHTML = NAV_ITEMS.map(
-    (item) => `<a href="#/t/${tenantId}/${item.key}" class="${item.key === section || section.startsWith(item.key + '/') ? 'active' : ''}">${item.label}</a>`,
-  ).join('');
+  nav.innerHTML = NAV_ITEMS.map((item) => {
+    // Items sharing a `group` (currently just Market Place) get a
+    // label rendered once, right before the first of them.
+    const label = item.groupLabel ? `<span class="nav-group-label">${item.groupLabel}</span>` : '';
+    const active = item.key === section || section.startsWith(item.key + '/');
+    const cls = [active ? 'active' : '', item.group ? 'nav-group-item' : ''].filter(Boolean).join(' ');
+    return `${label}<a href="#/t/${tenantId}/${item.key}" class="${cls}">${item.label}</a>`;
+  }).join('');
 }
 
 function renderTenantSwitcher() {

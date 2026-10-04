@@ -111,6 +111,24 @@ body {
   border-right: 3px solid var(--color-primary);
 }
 
+/* Market Place group: a label above its three items (Public Store,
+   Post Product(s), Post Service(s)), slightly indented so they read
+   as a sub-group of the sidebar rather than three more top-level
+   items. */
+.sidebar nav .nav-group-label {
+  display: block;
+  padding: var(--space-3) var(--space-4) 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+.sidebar nav a.nav-group-item {
+  padding-left: calc(var(--space-4) + var(--space-2));
+  font-size: 0.88rem;
+}
+
 main.content {
   margin-top: 56px;
   margin-left: 220px;

@@ -122,6 +122,30 @@ body.no-tenant main.content {
 .customer-nav a:last-child {
   border-bottom: none;
 }
+
+/* Market Place dropdown group (nav-toggle's menu is already one long
+   dropdown list — see the comment above — so this isn't a second
+   nested dropdown, just the three Market Place items visually grouped
+   under one label inside that same list: Public Store (browse
+   everyone's posted products/services), Post Product(s), Post
+   Service(s). */
+.customer-nav .nav-group {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-2);
+}
+.customer-nav .nav-group-label {
+  display: block;
+  padding-top: var(--space-3);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+.customer-nav .nav-group-item {
+  padding-left: var(--space-3);
+  border-bottom: none !important;
+}
 @media (min-width: 761px) {
   .customer-nav {
     max-width: 260px;
