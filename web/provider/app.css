@@ -98,10 +98,11 @@ body {
 
 .sidebar nav a {
   display: block;
-  padding: 10px var(--space-4);
+  padding: 6px var(--space-4);
   color: var(--color-text);
   text-decoration: none;
   font-size: 0.92rem;
+  line-height: 1.3;
 }
 .sidebar nav a:hover { background: var(--color-surface); }
 .sidebar nav a.active {
@@ -114,10 +115,12 @@ body {
 /* Market Place group: a label above its three items (Public Store,
    Post Product(s), Post Service(s)), slightly indented so they read
    as a sub-group of the sidebar rather than three more top-level
-   items. */
+   items. Padding is tightened the same way as the rest of the list
+   just above — with 17 items now in the sidebar, the old 10px-a-side
+   rhythm made for a lot of scrolling and visually uneven gaps. */
 .sidebar nav .nav-group-label {
   display: block;
-  padding: var(--space-3) var(--space-4) 2px;
+  padding: var(--space-2) var(--space-4) 1px;
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -125,6 +128,8 @@ body {
   color: var(--color-text-muted);
 }
 .sidebar nav a.nav-group-item {
+  padding-top: 5px;
+  padding-bottom: 5px;
   padding-left: calc(var(--space-4) + var(--space-2));
   font-size: 0.88rem;
 }
