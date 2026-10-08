@@ -309,3 +309,17 @@ a.btn-link.secondary {
 }
 .password-toggle:hover { color: var(--color-text); }
 .password-toggle:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+
+/* Parent-company line (shared/parent-footer.js) */
+.parent-line {
+  flex-basis: 100%;
+  margin: 32px auto 0;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+.parent-line a { color: inherit; font-weight: 600; }
+.parent-line a:hover { color: var(--color-text); }
+/* Centred auth pages are a flex row: let the line wrap under the card. */
+body:has(> .parent-line) { flex-wrap: wrap; align-content: center; }
