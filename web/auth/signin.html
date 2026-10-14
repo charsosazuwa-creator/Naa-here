@@ -14,7 +14,7 @@
 
   <div id="alert" class="alert error" role="alert" hidden></div>
 
-  <form id="signin-form" novalidate>
+  <form id="signin-form" novalidate data-password-only>
     <div class="field">
       <label for="identifier">Email or phone</label>
       <input id="identifier" name="identifier" type="text" autocomplete="username" required />
@@ -26,12 +26,16 @@
     <button class="primary" type="submit" id="submit-btn">Sign in</button>
   </form>
 
-  <p class="links"><a href="forgot-password.html">Forgot password?</a> · <a href="signup.html">Create an account</a></p>
+  <div id="oauth-buttons"></div>
+  <p class="links"><span data-password-only><a href="forgot-password.html">Forgot password?</a> · </span><a href="signup.html">Create an account</a></p>
+  <p class="links" id="provider-link" hidden>Run a business on Naa here? <a href="../provider/login.html">Go to the provider portal</a></p>
 </main>
 
 <script src="password-toggle.js"></script>
 <script src="api.js"></script>
 <script src="signin.js"></script>
+<script src="../shared/sso.js"></script>
+<script src="signin-sso.js"></script>
 <script src="../shared/parent-footer.js" defer></script>
 </body>
 </html>

@@ -21,6 +21,19 @@ function renderOAuthButtons(containerId, getState) {
   if (!container) {
     return;
   }
+  // With CLOUD MEDIA single sign-on on (web/shared/sso.js), one CLOUD MEDIA button replaces these;
+  // Google and Facebook are then offered on the CLOUD MEDIA sign-in page instead.
+  if (window.NaaSSO) {
+    const signup = window.location.pathname.includes('signup');
+    window.NaaSSO.upgradeAuthPage(container, getState, { signup }).then((switched) => {
+      if (!switched) renderSocialButtons(container, getState);
+    });
+    return;
+  }
+  renderSocialButtons(container, getState);
+}
+
+function renderSocialButtons(container, getState) {
 
   container.innerHTML = `
     <div class="oauth-divider"><span>or</span></div>

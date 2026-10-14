@@ -70,3 +70,12 @@ folder and `launcher/.secrets.json` before restarting.
 - **A migration or install step fails partway through**: it's safe to
   just run `start.bat` / `./start.sh` again — already-completed steps
   (dependency installs, migrations) are skipped automatically.
+
+## Single sign-on with the CLOUD MEDIA account
+Customers and businesses sign in with their CLOUD MEDIA account (one account for Naa here, Kooonda and
+cloudmedialtd.com); platform staff keep the password login at web/admin. API: `api/src/modules/identity/sso.*`
+(`/v1/auth/sso`, `/callback`, `/logout`, `/backchannel`, `/config`); pages: `web/shared/sso.js`.
+Settings: `SSO_ISSUER`, `SSO_CLIENT_ID` (`naa-here`), `SSO_CLIENT_SECRET`, optional `SSO_ENABLED=false`.
+Register the app in the CLOUD MEDIA portal (Admin → CLOUD MEDIA account) with return address
+`https://naahere.com/v1/auth/sso/callback`, sign-out return `https://naahere.com/auth/signin.html?signedout=1`
+and sign-out notice address `https://naahere.com/v1/auth/sso/backchannel`.

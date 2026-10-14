@@ -71,12 +71,15 @@
 
   subtitle.textContent = 'Redirecting…';
 
+  // A CLOUD MEDIA account sign-in may name the page to return to (same site only).
+  const next = params.get('next');
+  const safeNext = next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/v1/') ? next : null;
   const destination =
     role === 'provider'
       ? tenantId
         ? `../provider/index.html#/t/${tenantId}/overview`
-        : '../provider/index.html'
-      : '../customer/index.html';
+        : safeNext && safeNext.startsWith('/provider/') ? safeNext : '../provider/index.html'
+      : safeNext && safeNext.startsWith('/customer/') ? safeNext : '../customer/index.html';
 
   window.location.href = destination;
 })();

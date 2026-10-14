@@ -67,6 +67,10 @@ export interface AppConfig {
     google: { clientId: string; clientSecret: string };
     facebook: { clientId: string; clientSecret: string };
   };
+  // Single sign-on with the CLOUD MEDIA account (modules/identity/sso.*): customers and businesses sign
+  // in, sign up and reset passwords on the CLOUD MEDIA pages; platform staff keep the password login.
+  // On when issuer, clientId and clientSecret are all set and SSO_ENABLED isn't "false".
+  sso: { issuer: string; clientId: string; clientSecret: string; enabled: boolean };
   // US-005 (search businesses using Google): a server-side-only key
   // for the Google Places API (Text Search / Nearby Search), used to
   // supplement platform listings with nearby Google-sourced results.
@@ -149,6 +153,12 @@ export default (): AppConfig => ({
       clientId: process.env.FACEBOOK_CLIENT_ID ?? '',
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET ?? '',
     },
+  },
+  sso: {
+    issuer: (process.env.SSO_ISSUER ?? '').replace(/\/+$/, ''),
+    clientId: process.env.SSO_CLIENT_ID ?? '',
+    clientSecret: process.env.SSO_CLIENT_SECRET ?? '',
+    enabled: Boolean(process.env.SSO_ISSUER && process.env.SSO_CLIENT_ID && process.env.SSO_CLIENT_SECRET) && process.env.SSO_ENABLED !== 'false',
   },
   googlePlaces: {
     apiKey: process.env.GOOGLE_PLACES_API_KEY ?? '',

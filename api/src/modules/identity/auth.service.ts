@@ -61,7 +61,20 @@ export class AuthService {
     private readonly config: ConfigService<AppConfig, true>,
   ) {}
 
+  /** With CLOUD MEDIA single sign-on on, only platform staff keep a Naa here password. */
+  private get ssoOn(): boolean {
+    return typeof this.config?.get === 'function' ? (this.config.get('sso', { infer: true })?.enabled ?? false) : false;
+  }
+
+  private async isPlatformStaff(userId: string): Promise<boolean> {
+    const rows = await this.db.query(`SELECT 1 FROM platform_role_assignment WHERE user_id = $1 LIMIT 1`, [userId]);
+    return rows.length > 0;
+  }
+
   async register(dto: RegisterDto, ipAddress?: string): Promise<{ userId: string; requiresVerification: boolean }> {
+    if (this.ssoOn) {
+      throw new ForbiddenException('Create your account with your CLOUD MEDIA account.');
+    }
     assertPasswordStrength(dto.password);
 
     const existing = await this.db.query<{ id: string }>(
@@ -173,6 +186,10 @@ export class AuthService {
       throw new ForbiddenException('Please verify your account before signing in.');
     }
 
+    if (this.ssoOn && !(await this.isPlatformStaff(user.id))) {
+      throw new ForbiddenException('Sign in with your CLOUD MEDIA account.');
+    }
+
     await this.db.query(
       `UPDATE app_user SET failed_login_count = 0, locked_until = NULL, updated_at = now() WHERE id = $1`,
       [user.id],
@@ -222,7 +239,7 @@ export class AuthService {
     // Always behaves as "if an account exists, a code was sent" without
     // confirming or denying existence in the response (BR-SEC, avoids
     // account enumeration). If there's no user, silently do nothing.
-    if (user) {
+    if (user && (!this.ssoOn || (await this.isPlatformStaff(user.id)))) {
       const channel: 'email' | 'sms' = user.email ? 'email' : 'sms';
       await this.verificationCodes.issue(user.id, 'password_reset', channel);
     }

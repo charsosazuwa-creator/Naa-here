@@ -116,6 +116,16 @@ services:
       # is PUBLIC_BASE_URL + /v1/auth/google/callback (or
       # /v1/auth/facebook/callback). Set via the Render dashboard, not
       # here, so neither secret ends up committed to the repo.
+      # Single sign-on with the CLOUD MEDIA account (customers and businesses;
+      # platform staff keep the password login). Leave SSO_ISSUER empty to keep
+      # Naa here's own sign-in. The client secret comes from the CLOUD MEDIA
+      # portal: Admin -> CLOUD MEDIA account.
+      - key: SSO_ISSUER
+        sync: false
+      - key: SSO_CLIENT_ID
+        value: naa-here
+      - key: SSO_CLIENT_SECRET
+        sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET

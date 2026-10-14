@@ -1407,6 +1407,13 @@ function renderAuthArea() {
     userNameEl.textContent = state.user?.fullName ?? '';
     authBtn.textContent = 'Sign out';
     authBtn.onclick = () => {
+      // With CLOUD MEDIA single sign-on, signing out here signs out of the CLOUD MEDIA account and
+      // every group app too (web/shared/sso.js).
+      if (window.NaaSSO) {
+        state.user = null;
+        window.NaaSSO.signOut('customer', 'index.html?signedout=1#/home');
+        return;
+      }
       clearSession();
       state.user = null;
       renderAuthArea();
@@ -1475,6 +1482,8 @@ function initNavToggle() {
 }
 
 function init() {
+  // Already signed in to a CLOUD MEDIA account elsewhere? Sign in here silently (once per tab session).
+  if (window.NaaSSO && !isSignedIn()) window.NaaSSO.silentSignIn('customer');
   renderAuthArea();
   initNavToggle();
   if (isSignedIn()) {

@@ -42,3 +42,40 @@ export class OAuthCallbackQueryDto {
   @IsString()
   error?: string;
 }
+
+/** GET /v1/auth/sso — start a CLOUD MEDIA account sign-in. */
+export class SsoStartQueryDto {
+  @IsOptional()
+  @IsIn(['customer', 'provider'])
+  role?: 'customer' | 'provider';
+
+  @IsOptional()
+  @IsString()
+  business?: string;
+
+  // none = silent check, create = open the sign-up page, login = ask for the password again
+  @IsOptional()
+  @IsIn(['none', 'create', 'login'])
+  prompt?: 'none' | 'create' | 'login';
+
+  // Same-site page to return to afterwards, e.g. /customer/index.html#/bookings
+  @IsOptional()
+  @IsString()
+  next?: string;
+}
+
+/** What the CLOUD MEDIA account appends to its redirect back to /v1/auth/sso/callback. */
+export class SsoCallbackQueryDto {
+  @IsOptional() @IsString() code?: string;
+  @IsOptional() @IsString() state?: string;
+  @IsOptional() @IsString() error?: string;
+  @IsOptional() @IsString() error_description?: string;
+  @IsOptional() @IsString() iss?: string;
+}
+
+/** GET /v1/auth/sso/logout */
+export class SsoLogoutQueryDto {
+  @IsOptional()
+  @IsIn(['customer', 'provider'])
+  role?: 'customer' | 'provider';
+}

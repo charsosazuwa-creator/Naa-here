@@ -6,11 +6,13 @@ import { AuthService } from './auth.service';
 import { VerificationCodeService } from './verification-code.service';
 import { SessionService } from './session.service';
 import { OAuthService } from './oauth.service';
+import { SsoService } from './sso.service';
+import { SsoController } from './sso.controller';
 import { TenancyModule } from '../tenancy/tenancy.module';
 
 @Module({
   imports: [TenancyModule],
-  controllers: [AuthController, MeController, OAuthController],
-  providers: [AuthService, VerificationCodeService, SessionService, OAuthService],
+  controllers: [AuthController, MeController, OAuthController, SsoController],
+  providers: [AuthService, VerificationCodeService, SessionService, OAuthService, SsoService],
 })
 export class IdentityModule {}

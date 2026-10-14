@@ -2757,6 +2757,8 @@ function initSidebarToggle() {
 
 async function init() {
   if (!isSignedIn()) {
+    // Signed in to a CLOUD MEDIA account elsewhere? Come straight back here signed in.
+    if (window.NaaSSO && (await window.NaaSSO.silentSignIn('provider'))) return;
     window.location.href = 'login.html';
     return;
   }
@@ -2765,6 +2767,10 @@ async function init() {
   document.getElementById('user-name').textContent = state.user?.fullName ?? '';
 
   document.getElementById('sign-out-btn').addEventListener('click', () => {
+    if (window.NaaSSO) {
+      window.NaaSSO.signOut('provider', 'login.html');
+      return;
+    }
     clearSession();
     window.location.href = 'login.html';
   });
